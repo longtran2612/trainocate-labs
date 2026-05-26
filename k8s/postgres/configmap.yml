@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: money-transfer
+data:
+  init.sh: |
+    #!/bin/bash
+    set -e
+
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
+      CREATE DATABASE auth;
+      CREATE DATABASE account_db;
+      CREATE DATABASE kyc_db;
+      CREATE DATABASE limit_db;
+      CREATE DATABASE transaction_db;
+    EOSQL

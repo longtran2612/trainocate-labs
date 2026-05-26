@@ -1,0 +1,17 @@
+eureka:
+  client:
+    enabled: false
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgresql:5432/transaction_db
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:123456}
+  cloud:
+    openfeign:
+      client:
+        config:
+          internal-transfer-service:
+            url: http://internal-transfer-service:8086
+          external-transfer-service:
+            url: http://external-transfer-service:8087

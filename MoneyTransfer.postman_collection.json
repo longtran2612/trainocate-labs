@@ -6,6 +6,8 @@
 	},
 	"variable": [
 		{ "key": "gateway_url", "value": "http://localhost:8080" },
+		{ "key": "kong_url", "value": "http://localhost:8000" },
+		{ "key": "k8s_url", "value": "http://localhost:30000" },
 		{ "key": "auth_url", "value": "http://localhost:8081" },
 		{ "key": "account_url", "value": "http://localhost:8082" },
 		{ "key": "kyc_url", "value": "http://localhost:8083" },
@@ -701,6 +703,150 @@
 							"raw": "{\n    \"userId\": \"{{user_id}}\"\n}"
 						},
 						"url": { "raw": "{{gateway_url}}/api/v1/kyc/get-kyc-status", "host": ["{{gateway_url}}"], "path": ["api","v1","kyc","get-kyc-status"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "9. Via Kong Gateway",
+			"description": "Tat ca request di qua Kong Gateway (port 8000)\nAlternative cho Spring Cloud Gateway (port 8080)\nStart Kong: cd kong-gateway && docker compose up -d",
+			"item": [
+				{
+					"name": "9.1 [Kong] Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.accessToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"nguyen.vana\",\n    \"password\": \"123456\"\n}"
+						},
+						"url": { "raw": "{{kong_url}}/api/v1/auth/login", "host": ["{{kong_url}}"], "path": ["api","v1","auth","login"] }
+					}
+				},
+				{
+					"name": "9.2 [Kong] Inquiry Account",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"1000000001\"\n}"
+						},
+						"url": { "raw": "{{kong_url}}/api/v1/accounts/inquiry", "host": ["{{kong_url}}"], "path": ["api","v1","accounts","inquiry"] }
+					}
+				},
+				{
+					"name": "9.3 [Kong] Inquiry Internal (no bankCode)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{receiver_account_no}}\"\n}"
+						},
+						"url": { "raw": "{{kong_url}}/api/v1/transactions/inquiry", "host": ["{{kong_url}}"], "path": ["api","v1","transactions","inquiry"] }
+					}
+				},
+				{
+					"name": "9.4 [Kong] Inquiry External (bankCode=VCB)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"9704061234567890\",\n    \"bankCode\": \"VCB\",\n    \"channel\": \"NAPAS_247\"\n}"
+						},
+						"url": { "raw": "{{kong_url}}/api/v1/transactions/inquiry", "host": ["{{kong_url}}"], "path": ["api","v1","transactions","inquiry"] }
+					}
+				},
+				{
+					"name": "9.5 [Kong] Internal Transfer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('tx_id', jsonData.data.txId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"referenceId\": \"KONG-INT-{{$timestamp}}\",\n    \"senderAccountNo\": \"{{sender_account_no}}\",\n    \"receiverAccountNo\": \"{{receiver_account_no}}\",\n    \"amount\": 200000,\n    \"currency\": \"VND\",\n    \"description\": \"Internal transfer via Kong\",\n    \"pin\": \"123456\"\n}"
+						},
+						"url": { "raw": "{{kong_url}}/api/v1/transactions/transfer", "host": ["{{kong_url}}"], "path": ["api","v1","transactions","transfer"] }
+					}
+				},
+				{
+					"name": "9.6 [Kong] External Transfer (VCB)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('tx_id', jsonData.data.txId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"referenceId\": \"KONG-EXT-{{$timestamp}}\",\n    \"senderAccountNo\": \"{{sender_account_no}}\",\n    \"receiverAccountNo\": \"9704061234567890\",\n    \"bankCode\": \"VCB\",\n    \"receiverName\": \"MOCK - 9704061234567890\",\n    \"amount\": 300000,\n    \"currency\": \"VND\",\n    \"description\": \"External transfer via Kong\",\n    \"channel\": \"NAPAS_247\",\n    \"pin\": \"123456\"\n}"
+						},
+						"url": { "raw": "{{kong_url}}/api/v1/transactions/transfer", "host": ["{{kong_url}}"], "path": ["api","v1","transactions","transfer"] }
+					}
+				},
+				{
+					"name": "9.7 [Kong] Check Balance",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{sender_account_no}}\"\n}"
+						},
+						"url": { "raw": "{{kong_url}}/api/v1/accounts/check-balance", "host": ["{{kong_url}}"], "path": ["api","v1","accounts","check-balance"] }
+					}
+				},
+				{
+					"name": "9.8 [Kong] KYC Status",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\"\n}"
+						},
+						"url": { "raw": "{{kong_url}}/api/v1/kyc/get-kyc-status", "host": ["{{kong_url}}"], "path": ["api","v1","kyc","get-kyc-status"] }
 					}
 				}
 			]

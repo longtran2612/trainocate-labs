@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: internal-transfer-service
+  namespace: money-transfer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: internal-transfer-service
+  template:
+    metadata:
+      labels:
+        app: internal-transfer-service
+    spec:
+      containers:
+        - name: internal-transfer-service
+          image: internal-transfer-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8086
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: k8s
+          readinessProbe:
+            tcpSocket:
+              port: 8086
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8086
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: internal-transfer-service
+  namespace: money-transfer
+spec:
+  selector:
+    app: internal-transfer-service
+  ports:
+    - port: 8086
+      targetPort: 8086
+  type: ClusterIP

@@ -1,0 +1,11 @@
+rootProject.name = 'money-transfer-platform'
+
+include 'eureka-server'
+include 'auth-service'
+include 'account-service'
+include 'kyc-service'
+include 'limit-service'
+include 'transaction-service'
+include 'internal-transfer-service'
+include 'external-transfer-service'
+include 'api-gateway'

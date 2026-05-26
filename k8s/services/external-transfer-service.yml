@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-transfer-service
+  namespace: money-transfer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: external-transfer-service
+  template:
+    metadata:
+      labels:
+        app: external-transfer-service
+    spec:
+      containers:
+        - name: external-transfer-service
+          image: external-transfer-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8087
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: k8s
+          readinessProbe:
+            tcpSocket:
+              port: 8087
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8087
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-transfer-service
+  namespace: money-transfer
+spec:
+  selector:
+    app: external-transfer-service
+  ports:
+    - port: 8087
+      targetPort: 8087
+  type: ClusterIP

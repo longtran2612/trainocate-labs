@@ -1,0 +1,9 @@
+eureka:
+  client:
+    enabled: false
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgresql:5432/auth
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:123456}

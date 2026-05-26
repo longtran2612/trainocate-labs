@@ -1,0 +1,15 @@
+eureka:
+  client:
+    enabled: false
+
+spring:
+  cloud:
+    openfeign:
+      client:
+        config:
+          account-service:
+            url: http://account-service:8082
+          kyc-service:
+            url: http://kyc-service:8083
+          limit-service:
+            url: http://limit-service:8084
