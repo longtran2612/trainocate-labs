@@ -1,0 +1,67 @@
+# Bỏ qua các file biên dịch Java
+*.class
+
+# Thư mục build (Gradle) và target (Maven)
+target/
+build/
+
+# Log files
+*.log
+
+# File tạm hệ điều hành
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# IDE: IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+out/
+logs
+
+# IDE: Eclipse
+.project
+.classpath
+.settings/
+
+# IDE: NetBeans
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# Gradle Wrapper
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Maven Wrapper
+.mvn/
+!**/mvnw
+!**/mvnw.cmd
+
+# File cấu hình môi trường
+*.env
+.env.*
+
+# File cấu hình hệ thống riêng tư
+application-local.yml
+application-local.properties
+
+# VS Code
+.vscode/
+
+# Tệp test report hoặc coverage
+test-output/
+jacoco.exec
+coverage/
+
+# Database file hoặc dữ liệu cục bộ
+*.db
+*.sqlite
+
+# MacOS-specific
+__MACOSX/

@@ -1,0 +1,709 @@
+{
+	"info": {
+		"name": "Money Transfer Platform",
+		"description": "Trainocate Lab - Full API collection for Money Transfer microservices",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{ "key": "gateway_url", "value": "http://localhost:8080" },
+		{ "key": "auth_url", "value": "http://localhost:8081" },
+		{ "key": "account_url", "value": "http://localhost:8082" },
+		{ "key": "kyc_url", "value": "http://localhost:8083" },
+		{ "key": "limit_url", "value": "http://localhost:8084" },
+		{ "key": "transaction_url", "value": "http://localhost:8085" },
+		{ "key": "internal_url", "value": "http://localhost:8086" },
+		{ "key": "external_url", "value": "http://localhost:8087" },
+		{ "key": "access_token", "value": "" },
+		{ "key": "refresh_token", "value": "" },
+		{ "key": "user_id", "value": "11111111-1111-1111-1111-111111111111" },
+		{ "key": "sender_account_no", "value": "1000000001" },
+		{ "key": "receiver_account_no", "value": "1000000002" },
+		{ "key": "tx_id", "value": "" }
+	],
+	"item": [
+		{
+			"name": "1. Auth Service",
+			"item": [
+				{
+					"name": "1.1 Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.accessToken);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.refreshToken);",
+									"    pm.collectionVariables.set('user_id', jsonData.data.userId);",
+									"    pm.test('Login successful', function() {",
+									"        pm.expect(jsonData.success).to.be.true;",
+									"        pm.expect(jsonData.data.accessToken).to.not.be.empty;",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"nguyen.vana\",\n    \"password\": \"123456\"\n}"
+						},
+						"url": { "raw": "{{auth_url}}/api/v1/auth/login", "host": ["{{auth_url}}"], "path": ["api","v1","auth","login"] }
+					}
+				},
+				{
+					"name": "1.2 Validate Token",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"{{access_token}}\"\n}"
+						},
+						"url": { "raw": "{{auth_url}}/api/v1/auth/validate-token", "host": ["{{auth_url}}"], "path": ["api","v1","auth","validate-token"] }
+					}
+				},
+				{
+					"name": "1.3 Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.accessToken);",
+									"    pm.collectionVariables.set('refresh_token', jsonData.data.refreshToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refreshToken\": \"{{refresh_token}}\"\n}"
+						},
+						"url": { "raw": "{{auth_url}}/api/v1/auth/refresh-token", "host": ["{{auth_url}}"], "path": ["api","v1","auth","refresh-token"] }
+					}
+				},
+				{
+					"name": "1.4 Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" }
+						],
+						"url": { "raw": "{{auth_url}}/api/v1/auth/logout", "host": ["{{auth_url}}"], "path": ["api","v1","auth","logout"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Account Service",
+			"item": [
+				{
+					"name": "2.1 Inquiry by Account No",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"1000000001\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts/inquiry", "host": ["{{account_url}}"], "path": ["api","v1","accounts","inquiry"] }
+					}
+				},
+				{
+					"name": "2.2 Inquiry by Mobile",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"mobile\": \"0901000002\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts/inquiry", "host": ["{{account_url}}"], "path": ["api","v1","accounts","inquiry"] }
+					}
+				},
+				{
+					"name": "2.3 Get Customer Info",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{sender_account_no}}\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts/get-customer-info", "host": ["{{account_url}}"], "path": ["api","v1","accounts","get-customer-info"] }
+					}
+				},
+				{
+					"name": "2.4 Check Balance",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{sender_account_no}}\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts/check-balance", "host": ["{{account_url}}"], "path": ["api","v1","accounts","check-balance"] }
+					}
+				},
+				{
+					"name": "2.5 Debit",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{sender_account_no}}\",\n    \"amount\": 100000,\n    \"referenceId\": \"TEST-DEBIT-001\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts/debit", "host": ["{{account_url}}"], "path": ["api","v1","accounts","debit"] }
+					}
+				},
+				{
+					"name": "2.6 Credit",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{receiver_account_no}}\",\n    \"amount\": 100000,\n    \"referenceId\": \"TEST-CREDIT-001\",\n    \"description\": \"Test credit\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts/credit", "host": ["{{account_url}}"], "path": ["api","v1","accounts","credit"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "3. KYC Service",
+			"item": [
+				{
+					"name": "3.1 Get KYC Info",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\"\n}"
+						},
+						"url": { "raw": "{{kyc_url}}/api/v1/kyc/get-kyc-info", "host": ["{{kyc_url}}"], "path": ["api","v1","kyc","get-kyc-info"] }
+					}
+				},
+				{
+					"name": "3.2 Get KYC Tier",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\"\n}"
+						},
+						"url": { "raw": "{{kyc_url}}/api/v1/kyc/get-kyc-tier", "host": ["{{kyc_url}}"], "path": ["api","v1","kyc","get-kyc-tier"] }
+					}
+				},
+				{
+					"name": "3.3 Get KYC Status",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\"\n}"
+						},
+						"url": { "raw": "{{kyc_url}}/api/v1/kyc/get-kyc-status", "host": ["{{kyc_url}}"], "path": ["api","v1","kyc","get-kyc-status"] }
+					}
+				},
+				{
+					"name": "3.4 Verify KYC (User 3 - Pending)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"33333333-3333-3333-3333-333333333333\",\n    \"idNumber\": \"001092011111\",\n    \"idType\": \"NATIONAL_ID\",\n    \"fullName\": \"Le Thi C\"\n}"
+						},
+						"url": { "raw": "{{kyc_url}}/api/v1/kyc/verify", "host": ["{{kyc_url}}"], "path": ["api","v1","kyc","verify"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Limit Service",
+			"item": [
+				{
+					"name": "4.1 Limit Check (should pass)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{sender_account_no}}\",\n    \"amount\": 1000000,\n    \"transferType\": \"INTERNAL\"\n}"
+						},
+						"url": { "raw": "{{limit_url}}/api/v1/limits/limit-check", "host": ["{{limit_url}}"], "path": ["api","v1","limits","limit-check"] }
+					}
+				},
+				{
+					"name": "4.2 Limit Check (exceed single limit)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{sender_account_no}}\",\n    \"amount\": 999000000,\n    \"transferType\": \"INTERNAL\"\n}"
+						},
+						"url": { "raw": "{{limit_url}}/api/v1/limits/limit-check", "host": ["{{limit_url}}"], "path": ["api","v1","limits","limit-check"] }
+					}
+				},
+				{
+					"name": "4.3 Limit Info",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{sender_account_no}}\"\n}"
+						},
+						"url": { "raw": "{{limit_url}}/api/v1/limits/limit-info", "host": ["{{limit_url}}"], "path": ["api","v1","limits","limit-info"] }
+					}
+				},
+				{
+					"name": "4.4 Limit Consume",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{sender_account_no}}\",\n    \"amount\": 1000000,\n    \"transferType\": \"INTERNAL\",\n    \"txId\": \"test-tx-001\"\n}"
+						},
+						"url": { "raw": "{{limit_url}}/api/v1/limits/limit-consume", "host": ["{{limit_url}}"], "path": ["api","v1","limits","limit-consume"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "5. Transaction Service (CRUD)",
+			"item": [
+				{
+					"name": "5.1 Create Transaction",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('tx_id', jsonData.data.txId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"referenceId\": \"REF-TEST-001\",\n    \"txType\": \"INTERNAL_TRANSFER\",\n    \"senderAccount\": \"1000000001\",\n    \"receiverAccount\": \"1000000002\",\n    \"amount\": 500000,\n    \"fee\": 0,\n    \"currency\": \"VND\",\n    \"description\": \"Test transaction\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/create-transaction", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","create-transaction"] }
+					}
+				},
+				{
+					"name": "5.2 Get Transaction Info",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"txId\": \"{{tx_id}}\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/transaction-info", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","transaction-info"] }
+					}
+				},
+				{
+					"name": "5.3 Get Transaction by Reference",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"referenceId\": \"REF-TEST-001\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/transaction-info", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","transaction-info"] }
+					}
+				},
+				{
+					"name": "5.4 Update Transaction Status",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"txId\": \"{{tx_id}}\",\n    \"status\": \"COMPLETED\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/update-status", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","update-status"] }
+					}
+				},
+				{
+					"name": "5.5 Reverse Transaction",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"txId\": \"{{tx_id}}\",\n    \"reason\": \"Test reversal\",\n    \"initiatedBy\": \"admin\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/reverse-transaction", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","reverse-transaction"] }
+					}
+				},
+				{
+					"name": "5.6 Duplicate Reference (should fail)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"referenceId\": \"REF-TEST-001\",\n    \"txType\": \"INTERNAL_TRANSFER\",\n    \"senderAccount\": \"1000000001\",\n    \"receiverAccount\": \"1000000002\",\n    \"amount\": 500000,\n    \"currency\": \"VND\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/create-transaction", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","create-transaction"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "6. Internal Transfer (E2E via transaction-service)",
+			"description": "Flow: Client -> transaction-service -> internal-transfer-service\nbankCode = null hoac 970406 -> route noi bo",
+			"item": [
+				{
+					"name": "6.1 Inquiry Receiver (Internal)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{receiver_account_no}}\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/inquiry", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","inquiry"] }
+					}
+				},
+				{
+					"name": "6.2 Inquiry Receiver (Internal - explicit bankCode)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{receiver_account_no}}\",\n    \"bankCode\": \"970406\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/inquiry", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","inquiry"] }
+					}
+				},
+				{
+					"name": "6.3 Transfer 1M VND Internal (A -> B)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('tx_id', jsonData.data.txId);",
+									"    pm.test('Transfer completed', function() {",
+									"        pm.expect(jsonData.data.status).to.eql('COMPLETED');",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"referenceId\": \"INT-{{$timestamp}}\",\n    \"senderAccountNo\": \"{{sender_account_no}}\",\n    \"receiverAccountNo\": \"{{receiver_account_no}}\",\n    \"amount\": 1000000,\n    \"currency\": \"VND\",\n    \"description\": \"Chuyen tien noi bo test\",\n    \"pin\": \"123456\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/transfer", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","transfer"] }
+					}
+				},
+				{
+					"name": "6.4 Check TX Info After Transfer",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"txId\": \"{{tx_id}}\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/transaction-info", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","transaction-info"] }
+					}
+				},
+				{
+					"name": "6.5 Check Sender Balance After",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{sender_account_no}}\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts/check-balance", "host": ["{{account_url}}"], "path": ["api","v1","accounts","check-balance"] }
+					}
+				},
+				{
+					"name": "6.6 Check Receiver Balance After",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{receiver_account_no}}\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts/check-balance", "host": ["{{account_url}}"], "path": ["api","v1","accounts","check-balance"] }
+					}
+				},
+				{
+					"name": "6.7 Transfer (KYC fail - User 3)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"referenceId\": \"INT-FAIL-{{$timestamp}}\",\n    \"senderAccountNo\": \"1000000003\",\n    \"receiverAccountNo\": \"1000000001\",\n    \"amount\": 100000,\n    \"currency\": \"VND\",\n    \"description\": \"Should fail - KYC not verified\",\n    \"pin\": \"123456\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/transfer", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","transfer"] }
+					}
+				},
+				{
+					"name": "6.8 Transfer (Insufficient Balance)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"referenceId\": \"INT-INSUF-{{$timestamp}}\",\n    \"senderAccountNo\": \"{{sender_account_no}}\",\n    \"receiverAccountNo\": \"{{receiver_account_no}}\",\n    \"amount\": 999999999999,\n    \"currency\": \"VND\",\n    \"description\": \"Should fail - insufficient balance\",\n    \"pin\": \"123456\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/transfer", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","transfer"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "7. External Transfer (E2E via transaction-service)",
+			"description": "Flow: Client -> transaction-service -> external-transfer-service\nbankCode khac 970406 (VCB, TCB, MBB...) -> route lien ngan hang",
+			"item": [
+				{
+					"name": "7.1 Inquiry External Account (VCB)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"9704061234567890\",\n    \"bankCode\": \"VCB\",\n    \"channel\": \"NAPAS_247\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/inquiry", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","inquiry"] }
+					}
+				},
+				{
+					"name": "7.2 Transfer External 500K (A -> VCB)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('tx_id', jsonData.data.txId);",
+									"    pm.test('Transfer pending', function() {",
+									"        pm.expect(jsonData.data.status).to.eql('PENDING');",
+									"        pm.expect(jsonData.data.napasRef).to.not.be.empty;",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"referenceId\": \"EXT-{{$timestamp}}\",\n    \"senderAccountNo\": \"{{sender_account_no}}\",\n    \"receiverAccountNo\": \"9704061234567890\",\n    \"bankCode\": \"VCB\",\n    \"receiverName\": \"MOCK - 9704061234567890\",\n    \"amount\": 500000,\n    \"currency\": \"VND\",\n    \"description\": \"Chuyen tien lien ngan hang test\",\n    \"channel\": \"NAPAS_247\",\n    \"pin\": \"123456\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/transfer", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","transfer"] }
+					}
+				},
+				{
+					"name": "7.3 Check TX Info After External Transfer",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"txId\": \"{{tx_id}}\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/transaction-info", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","transaction-info"] }
+					}
+				},
+				{
+					"name": "7.4 Check Sender Balance After External",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{sender_account_no}}\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts/check-balance", "host": ["{{account_url}}"], "path": ["api","v1","accounts","check-balance"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "8. Via API Gateway",
+			"description": "Tat ca request di qua gateway (port 8080)\nTransfer requests route: gateway -> transaction-service -> internal/external",
+			"item": [
+				{
+					"name": "8.1 [GW] Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('access_token', jsonData.data.accessToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"nguyen.vana\",\n    \"password\": \"123456\"\n}"
+						},
+						"url": { "raw": "{{gateway_url}}/api/v1/auth/login", "host": ["{{gateway_url}}"], "path": ["api","v1","auth","login"] }
+					}
+				},
+				{
+					"name": "8.2 [GW] Inquiry Account",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"1000000001\"\n}"
+						},
+						"url": { "raw": "{{gateway_url}}/api/v1/accounts/inquiry", "host": ["{{gateway_url}}"], "path": ["api","v1","accounts","inquiry"] }
+					}
+				},
+				{
+					"name": "8.3 [GW] Inquiry Internal (no bankCode)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{receiver_account_no}}\"\n}"
+						},
+						"url": { "raw": "{{gateway_url}}/api/v1/transactions/inquiry", "host": ["{{gateway_url}}"], "path": ["api","v1","transactions","inquiry"] }
+					}
+				},
+				{
+					"name": "8.4 [GW] Inquiry External (bankCode=VCB)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"9704061234567890\",\n    \"bankCode\": \"VCB\",\n    \"channel\": \"NAPAS_247\"\n}"
+						},
+						"url": { "raw": "{{gateway_url}}/api/v1/transactions/inquiry", "host": ["{{gateway_url}}"], "path": ["api","v1","transactions","inquiry"] }
+					}
+				},
+				{
+					"name": "8.5 [GW] Internal Transfer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('tx_id', jsonData.data.txId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"referenceId\": \"GW-INT-{{$timestamp}}\",\n    \"senderAccountNo\": \"{{sender_account_no}}\",\n    \"receiverAccountNo\": \"{{receiver_account_no}}\",\n    \"amount\": 200000,\n    \"currency\": \"VND\",\n    \"description\": \"Internal transfer via Gateway\",\n    \"pin\": \"123456\"\n}"
+						},
+						"url": { "raw": "{{gateway_url}}/api/v1/transactions/transfer", "host": ["{{gateway_url}}"], "path": ["api","v1","transactions","transfer"] }
+					}
+				},
+				{
+					"name": "8.6 [GW] External Transfer (VCB)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('tx_id', jsonData.data.txId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"referenceId\": \"GW-EXT-{{$timestamp}}\",\n    \"senderAccountNo\": \"{{sender_account_no}}\",\n    \"receiverAccountNo\": \"9704061234567890\",\n    \"bankCode\": \"VCB\",\n    \"receiverName\": \"MOCK - 9704061234567890\",\n    \"amount\": 300000,\n    \"currency\": \"VND\",\n    \"description\": \"External transfer via Gateway\",\n    \"channel\": \"NAPAS_247\",\n    \"pin\": \"123456\"\n}"
+						},
+						"url": { "raw": "{{gateway_url}}/api/v1/transactions/transfer", "host": ["{{gateway_url}}"], "path": ["api","v1","transactions","transfer"] }
+					}
+				},
+				{
+					"name": "8.7 [GW] KYC Status",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\"\n}"
+						},
+						"url": { "raw": "{{gateway_url}}/api/v1/kyc/get-kyc-status", "host": ["{{gateway_url}}"], "path": ["api","v1","kyc","get-kyc-status"] }
+					}
+				}
+			]
+		}
+	]
+}
