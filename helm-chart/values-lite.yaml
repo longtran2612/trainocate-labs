@@ -1,0 +1,21 @@
+# Lite deployment — PostgreSQL + account-service + Kong
+# Usage: helm upgrade --install money-transfer ./helm-chart -f ./helm-chart/values-lite.yaml
+
+postgresql:
+  databases:
+    - account_db
+
+frontend:
+  enabled: false
+
+kong:
+  routes:
+    - service: account-service
+      port: 8082
+      path: /api/v1/accounts
+
+services:
+  - name: account-service
+    port: 8082
+    hasDb: true
+    dbName: account_db

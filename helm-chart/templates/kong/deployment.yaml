@@ -1,3 +1,4 @@
+{{- if ne (toString .Values.kong.enabled) "false" }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -61,3 +62,4 @@ spec:
         - name: kong-config
           configMap:
             name: kong-config
+{{- end }}

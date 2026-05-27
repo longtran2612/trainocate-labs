@@ -1,3 +1,4 @@
+{{- if ne (toString .Values.kong.enabled) "false" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -12,45 +13,15 @@ data:
     _transform: true
 
     services:
-      - name: auth-service
-        url: http://auth-service:8081
+    {{- range .Values.kong.routes }}
+      - name: {{ .service }}
+        url: http://{{ .service }}:{{ .port }}
         routes:
-          - name: auth-route
+          - name: {{ .service }}-route
             paths:
-              - /api/v1/auth
+              - {{ .path }}
             strip_path: false
-
-      - name: account-service
-        url: http://account-service:8082
-        routes:
-          - name: account-route
-            paths:
-              - /api/v1/accounts
-            strip_path: false
-
-      - name: kyc-service
-        url: http://kyc-service:8083
-        routes:
-          - name: kyc-route
-            paths:
-              - /api/v1/kyc
-            strip_path: false
-
-      - name: limit-service
-        url: http://limit-service:8084
-        routes:
-          - name: limit-route
-            paths:
-              - /api/v1/limits
-            strip_path: false
-
-      - name: transaction-service
-        url: http://transaction-service:8085
-        routes:
-          - name: transaction-route
-            paths:
-              - /api/v1/transactions
-            strip_path: false
+    {{- end }}
 
     plugins:
       - name: correlation-id
@@ -58,15 +29,4 @@ data:
           header_name: X-Correlation-ID
           generator: uuid
           echo_downstream: true
-
-      - name: rate-limiting
-        service: auth-service
-        config:
-          minute: {{ .Values.kong.rateLimiting.auth.minute }}
-          policy: local
-
-      - name: rate-limiting
-        service: transaction-service
-        config:
-          minute: {{ .Values.kong.rateLimiting.transaction.minute }}
-          policy: local
+{{- end }}
