@@ -57,6 +57,39 @@ kong:
       port: 8085
       path: /api/v1/transactions
 
+# -- Redis (CQRS read model cache)
+redis:
+  image: redis:7-alpine
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# -- Kafka (KRaft mode, CDC event streaming)
+kafka:
+  image: bitnami/kafka:3.9
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# -- Debezium Kafka Connect (CDC)
+debezium:
+  image: debezium/connect:2.7
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
 # -- Frontend (React + nginx)
 frontend:
   enabled: true
@@ -104,6 +137,13 @@ services:
     port: 8082
     hasDb: true
     dbName: account_db
+    extraEnv:
+      - name: SPRING_DATA_REDIS_HOST
+        value: redis
+      - name: SPRING_DATA_REDIS_PORT
+        value: "6379"
+      - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        value: kafka:9092
 
   - name: kyc-service
     port: 8083

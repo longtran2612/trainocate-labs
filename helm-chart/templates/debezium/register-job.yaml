@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: debezium-connector-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "money-transfer.labels" . | nindent 4 }}
+data:
+  register-connector.sh: |
+    #!/bin/sh
+    set -e
+    CONNECT_URL="http://kafka-connect:8083"
+
+    echo "Waiting for Kafka Connect to be ready..."
+    until curl -sf "$CONNECT_URL/" > /dev/null 2>&1; do
+      sleep 5
+    done
+    echo "Kafka Connect is ready."
+
+    # Check if connector already exists
+    if curl -sf "$CONNECT_URL/connectors/account-connector" > /dev/null 2>&1; then
+      echo "Connector already exists, updating..."
+      curl -s -X PUT "$CONNECT_URL/connectors/account-connector/config" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+          "database.hostname": "postgresql",
+          "database.port": "5432",
+          "database.user": "{{ .Values.postgresql.credentials.username }}",
+          "database.password": "{{ .Values.postgresql.credentials.password }}",
+          "database.dbname": "account_db",
+          "topic.prefix": "account_db",
+          "table.include.list": "public.accounts",
+          "plugin.name": "pgoutput",
+          "slot.name": "debezium_account",
+          "publication.name": "dbz_publication",
+          "decimal.handling.mode": "string",
+          "time.precision.mode": "connect",
+          "transforms": "unwrap",
+          "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+          "transforms.unwrap.drop.tombstones": "false",
+          "transforms.unwrap.delete.handling.mode": "none"
+        }'
+    else
+      echo "Registering new connector..."
+      curl -s -X POST "$CONNECT_URL/connectors" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "name": "account-connector",
+          "config": {
+            "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+            "database.hostname": "postgresql",
+            "database.port": "5432",
+            "database.user": "{{ .Values.postgresql.credentials.username }}",
+            "database.password": "{{ .Values.postgresql.credentials.password }}",
+            "database.dbname": "account_db",
+            "topic.prefix": "account_db",
+            "table.include.list": "public.accounts",
+            "plugin.name": "pgoutput",
+            "slot.name": "debezium_account",
+            "publication.name": "dbz_publication",
+            "decimal.handling.mode": "string",
+            "time.precision.mode": "connect",
+            "transforms": "unwrap",
+            "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+            "transforms.unwrap.drop.tombstones": "false",
+            "transforms.unwrap.delete.handling.mode": "none"
+          }
+        }'
+    fi
+
+    echo ""
+    echo "Connector status:"
+    sleep 3
+    curl -s "$CONNECT_URL/connectors/account-connector/status" | head -200
+    echo ""
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: debezium-register-{{ .Release.Revision }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: debezium-register
+    {{- include "money-transfer.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 5
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app: debezium-register
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: register
+          image: curlimages/curl:latest
+          command: ["sh", "/scripts/register-connector.sh"]
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: debezium-connector-config
+            defaultMode: 0755

@@ -55,6 +55,10 @@ spec:
                   name: postgres-secret
                   key: POSTGRES_PASSWORD
             {{- end }}
+            {{- range .extraEnv }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
           readinessProbe:
             tcpSocket:
               port: {{ .port }}

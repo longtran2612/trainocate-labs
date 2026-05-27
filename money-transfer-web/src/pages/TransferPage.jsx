@@ -2,10 +2,21 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import * as transferApi from '../api/transferApi';
+import * as limitApi from '../api/limitApi';
 
 function formatCurrency(amount) {
   if (amount == null) return '---';
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+}
+
+function formatAmountDisplay(raw) {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  return parseInt(digits, 10).toLocaleString('vi-VN');
+}
+
+function parseAmountRaw(display) {
+  return display.replace(/[^0-9]/g, '');
 }
 
 const STEPS = { FORM: 0, CONFIRM: 1, RESULT: 2 };
@@ -35,24 +46,25 @@ export default function TransferPage() {
 
   const [step, setStep] = useState(STEPS.FORM);
 
-  // Form state
   const [bankCode, setBankCode] = useState(isInternal ? INTERNAL_BANK_CODE : '');
   const [receiverAccountNo, setReceiverAccountNo] = useState('');
-  const [amount, setAmount] = useState('');
+  const [amountDisplay, setAmountDisplay] = useState('');
   const [description, setDescription] = useState('');
   const [pin, setPin] = useState('');
 
-  // Inquiry state
   const [receiverInfo, setReceiverInfo] = useState(null);
   const [inquiryLoading, setInquiryLoading] = useState(false);
   const [inquiryError, setInquiryError] = useState('');
 
-  // Transfer state
+  const [limitError, setLimitError] = useState('');
+  const [limitLoading, setLimitLoading] = useState(false);
+
   const [transferResult, setTransferResult] = useState(null);
   const [transferError, setTransferError] = useState('');
   const [transferLoading, setTransferLoading] = useState(false);
 
   const currentBankCode = isInternal ? INTERNAL_BANK_CODE : bankCode;
+  const rawAmount = parseAmountRaw(amountDisplay);
 
   const handleInquiry = async () => {
     if (!receiverAccountNo.trim() || !currentBankCode) return;
@@ -61,7 +73,10 @@ export default function TransferPage() {
     setReceiverInfo(null);
     try {
       const res = await transferApi.inquiryReceiver(receiverAccountNo.trim(), currentBankCode);
-      setReceiverInfo(res.data.data);
+      const info = res.data.data;
+      setReceiverInfo(info);
+      const name = info.fullName || info.receiverName || '';
+      setDescription(name ? `${name} transfer from VikkiBank` : 'Transfer from VikkiBank');
     } catch (err) {
       setInquiryError(err.response?.data?.message || 'Account not found');
     } finally {
@@ -69,13 +84,50 @@ export default function TransferPage() {
     }
   };
 
-  const handleProceedToConfirm = (e) => {
+  const handleProceedToConfirm = async (e) => {
     e.preventDefault();
-    if (!receiverInfo) return;
-    setStep(STEPS.CONFIRM);
+    if (!receiverInfo || !rawAmount) return;
+
+    setLimitError('');
+    setLimitLoading(true);
+    try {
+      const res = await limitApi.getLimitInfo(user.accountNo);
+      const limits = res.data.data || [];
+      const transferType = isInternal ? 'INTERNAL' : 'EXTERNAL';
+      const lim = limits.find((l) => l.transferType === transferType);
+
+      if (lim) {
+        const amt = parseFloat(rawAmount);
+        if (amt > lim.singleLimit) {
+          setLimitError(`Exceeds single transaction limit: max ${formatCurrency(lim.singleLimit)}`);
+          return;
+        }
+        if (lim.usedDaily + amt > lim.dailyLimit) {
+          const remain = lim.dailyLimit - lim.usedDaily;
+          setLimitError(`Exceeds daily limit: ${formatCurrency(remain)} remaining`);
+          return;
+        }
+        if (lim.usedMonthly + amt > lim.monthlyLimit) {
+          const remain = lim.monthlyLimit - lim.usedMonthly;
+          setLimitError(`Exceeds monthly limit: ${formatCurrency(remain)} remaining`);
+          return;
+        }
+      }
+
+      setPin('');
+      setTransferError('');
+      setStep(STEPS.CONFIRM);
+    } catch {
+      setPin('');
+      setTransferError('');
+      setStep(STEPS.CONFIRM);
+    } finally {
+      setLimitLoading(false);
+    }
   };
 
   const handleTransfer = async () => {
+    if (pin.length !== 6) return;
     setTransferLoading(true);
     setTransferError('');
     try {
@@ -85,7 +137,7 @@ export default function TransferPage() {
         receiverAccountNo: receiverAccountNo.trim(),
         receiverName: receiverInfo.fullName || receiverInfo.receiverName || '',
         bankCode: currentBankCode,
-        amount: parseFloat(amount),
+        amount: parseFloat(rawAmount),
         description: description || `Transfer to ${receiverAccountNo}`,
         pin,
       });
@@ -101,22 +153,23 @@ export default function TransferPage() {
   const handleNewTransfer = () => {
     setStep(STEPS.FORM);
     setReceiverAccountNo('');
-    setAmount('');
+    setAmountDisplay('');
     setDescription('');
     setPin('');
     setReceiverInfo(null);
     setTransferResult(null);
     setTransferError('');
     setInquiryError('');
+    setLimitError('');
     if (!isInternal) setBankCode('');
   };
 
   const resetInquiry = () => {
     setReceiverInfo(null);
     setInquiryError('');
+    setLimitError('');
   };
 
-  // Demo accounts for internal transfer
   const demoReceivers = [
     { accountNo: '1000000001', name: 'Nguyen Van A' },
     { accountNo: '1000000002', name: 'Tran Van B' },
@@ -168,7 +221,6 @@ export default function TransferPage() {
               </div>
             </div>
 
-            {/* Bank selection for external */}
             {!isInternal && (
               <div className="form-section">
                 <h3>Receiving Bank</h3>
@@ -217,13 +269,12 @@ export default function TransferPage() {
                       onClick={handleInquiry}
                       disabled={inquiryLoading || !receiverAccountNo.trim() || (!isInternal && !bankCode)}
                     >
-                      {inquiryLoading ? 'Checking...' : 'Verify'}
+                      {inquiryLoading ? 'Searching...' : 'Inquiry'}
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Demo chips for internal only */}
               {isInternal && (
                 <div className="demo-chips small">
                   {demoReceivers.map((d) => (
@@ -260,11 +311,11 @@ export default function TransferPage() {
                 <label htmlFor="amount">Amount (VND)</label>
                 <input
                   id="amount"
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  value={amountDisplay}
+                  onChange={(e) => setAmountDisplay(formatAmountDisplay(e.target.value))}
                   placeholder="Enter amount"
-                  min="1000"
                   required
                 />
               </div>
@@ -275,35 +326,25 @@ export default function TransferPage() {
                   type="text"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Transfer description (optional)"
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="pin">PIN</label>
-                <input
-                  id="pin"
-                  type="password"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="Enter PIN"
-                  maxLength={6}
-                  required
+                  placeholder="Transfer description (auto-filled after inquiry)"
                 />
               </div>
             </div>
 
+            {limitError && <div className="alert alert-error">{limitError}</div>}
+
             <button
               type="submit"
               className="btn btn-primary btn-block"
-              disabled={!receiverInfo || !amount}
+              disabled={!receiverInfo || !rawAmount || limitLoading}
             >
-              Continue
+              {limitLoading ? 'Checking limits...' : 'Continue'}
             </button>
           </form>
         </div>
       )}
 
-      {/* Step 2: Confirm */}
+      {/* Step 2: Confirm + PIN */}
       {step === STEPS.CONFIRM && (
         <div className="transfer-card">
           <div className="confirm-summary">
@@ -337,7 +378,7 @@ export default function TransferPage() {
               </div>
               <div className="info-row highlight">
                 <span className="label">Amount</span>
-                <span className="value amount-lg">{formatCurrency(parseFloat(amount))}</span>
+                <span className="value amount-lg">{formatCurrency(parseFloat(rawAmount))}</span>
               </div>
               <div className="info-row">
                 <span className="label">Description</span>
@@ -346,12 +387,26 @@ export default function TransferPage() {
             </div>
           </div>
 
+          <div className="form-group" style={{ marginTop: '1.5rem' }}>
+            <label htmlFor="pin">PIN (6 digits)</label>
+            <input
+              id="pin"
+              type="password"
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="Enter your PIN"
+              maxLength={6}
+              inputMode="numeric"
+              autoFocus
+            />
+          </div>
+
           {transferError && <div className="alert alert-error">{transferError}</div>}
 
           <div className="btn-group">
             <button
               className="btn btn-outline"
-              onClick={() => { setStep(STEPS.FORM); setTransferError(''); }}
+              onClick={() => { setStep(STEPS.FORM); setTransferError(''); setPin(''); }}
               disabled={transferLoading}
             >
               Back
@@ -359,7 +414,7 @@ export default function TransferPage() {
             <button
               className="btn btn-primary"
               onClick={handleTransfer}
-              disabled={transferLoading}
+              disabled={transferLoading || pin.length !== 6}
             >
               {transferLoading ? 'Processing...' : 'Confirm Transfer'}
             </button>
@@ -377,7 +432,7 @@ export default function TransferPage() {
             <div className={`result-box ${isSuccess ? 'success' : isPending ? 'pending' : 'failed'}`}>
               <div className="result-icon">{isSuccess ? '✅' : isPending ? '⏳' : '❌'}</div>
               <h3>{isSuccess ? 'Transfer Successful' : isPending ? 'Transfer Pending' : 'Transfer Failed'}</h3>
-              <p className="result-amount">{formatCurrency(parseFloat(amount))}</p>
+              <p className="result-amount">{formatCurrency(parseFloat(rawAmount))}</p>
               <p className="result-desc">
                 To: {receiverInfo?.fullName || receiverInfo?.receiverName} ({receiverAccountNo})
                 {!isInternal && <span> - {bankLabel}</span>}

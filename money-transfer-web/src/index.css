@@ -116,6 +116,27 @@ body {
   gap: 0.75rem;
 }
 
+.navbar-account-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+}
+
+.navbar-fullname {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-heading);
+  white-space: nowrap;
+}
+
+.navbar-balance {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--success);
+  font-family: var(--mono);
+}
+
 .account-badge {
   font-family: var(--mono);
   font-size: 0.8rem;
@@ -1052,6 +1073,19 @@ body {
 
 .history-amount.incoming {
   color: var(--success);
+}
+
+.history-item-name {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-family: inherit;
+}
+
+.history-balance-after {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  text-align: right;
+  margin-top: 0.15rem;
 }
 
 .badge-error {
