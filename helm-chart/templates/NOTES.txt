@@ -1,0 +1,28 @@
+====================================================
+  Money Transfer Platform deployed successfully!
+====================================================
+
+Namespace: {{ .Values.namespace }}
+
+Access points:
+  Kong Gateway (API):  http://localhost:{{ .Values.kong.nodePort.proxy }}
+  Kong Admin:          http://localhost:{{ .Values.kong.nodePort.admin }}
+{{- if .Values.frontend.enabled }}
+  Frontend (Web UI):   http://localhost:{{ .Values.frontend.nodePort }}
+{{- end }}
+
+API endpoints via Kong:
+  POST http://localhost:{{ .Values.kong.nodePort.proxy }}/api/v1/auth/login
+  POST http://localhost:{{ .Values.kong.nodePort.proxy }}/api/v1/accounts/inquiry
+  POST http://localhost:{{ .Values.kong.nodePort.proxy }}/api/v1/transactions/transfer
+
+Demo accounts (password: 123456):
+  1000000001 - Nguyen Van A
+  1000000002 - Tran Van B
+  1000000003 - Le Thi C
+
+Check pod status:
+  kubectl get pods -n {{ .Values.namespace }}
+
+View logs:
+  kubectl logs -f deployment/<service-name> -n {{ .Values.namespace }}

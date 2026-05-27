@@ -13,3 +13,5 @@ spring:
             url: http://kyc-service:8083
           limit-service:
             url: http://limit-service:8084
+          napas-simulator:
+            url: http://napas-simulator:8088

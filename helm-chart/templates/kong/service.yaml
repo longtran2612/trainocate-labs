@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: kong
+    {{- include "money-transfer.labels" . | nindent 4 }}
+spec:
+  type: NodePort
+  ports:
+    - name: proxy
+      port: 8000
+      targetPort: 8000
+      nodePort: {{ .Values.kong.nodePort.proxy }}
+    - name: admin
+      port: 8001
+      targetPort: 8001
+      nodePort: {{ .Values.kong.nodePort.admin }}
+  selector:
+    app: kong
