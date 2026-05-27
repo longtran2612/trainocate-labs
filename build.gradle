@@ -56,7 +56,7 @@ configure(microservices) {
 }
 
 // Keycloak OAuth2 Resource Server (excludes auth-service which has own security, api-gateway, eureka-server)
-def keycloakServices = subprojects.findAll { !(it.name in ['api-gateway', 'eureka-server', 'auth-service']) }
+def keycloakServices = subprojects.findAll { !(it.name in ['api-gateway', 'eureka-server', 'auth-service', 'napas-simulator']) }
 configure(keycloakServices) {
     dependencies {
         implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'

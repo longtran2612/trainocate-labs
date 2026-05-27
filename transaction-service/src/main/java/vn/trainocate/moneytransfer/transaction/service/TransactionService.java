@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.trainocate.moneytransfer.transaction.dto.request.CreateTransactionRequest;
 import vn.trainocate.moneytransfer.transaction.dto.request.ReverseTransactionRequest;
+import vn.trainocate.moneytransfer.transaction.dto.request.TransactionHistoryRequest;
 import vn.trainocate.moneytransfer.transaction.dto.request.TransactionInfoRequest;
 import vn.trainocate.moneytransfer.transaction.dto.request.UpdateTransactionStatusRequest;
 import vn.trainocate.moneytransfer.transaction.dto.response.ReverseTransactionResponse;
@@ -116,6 +117,15 @@ public class TransactionService {
         log.info("Transaction status updated: txId={}, status={}", entity.getTxId(), entity.getStatus());
 
         return toResponse(entity);
+    }
+
+    public java.util.List<TransactionResponse> getHistory(TransactionHistoryRequest request) {
+        return transactionRepository
+                .findBySenderAccountOrReceiverAccountOrderByInitiatedAtDesc(
+                        request.getAccountNo(), request.getAccountNo())
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     private TransactionResponse toResponse(TransactionEntity entity) {

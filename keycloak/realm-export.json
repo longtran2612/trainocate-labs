@@ -40,7 +40,7 @@
   ],
   "users": [
     {
-      "username": "nguyen.vana",
+      "username": "1000000001",
       "enabled": true,
       "email": "nguyen.vana@email.com",
       "firstName": "Van A",
@@ -56,7 +56,7 @@
       "realmRoles": ["USER"]
     },
     {
-      "username": "tran.vanb",
+      "username": "1000000002",
       "enabled": true,
       "email": "tran.vanb@email.com",
       "firstName": "Van B",
@@ -72,7 +72,7 @@
       "realmRoles": ["USER"]
     },
     {
-      "username": "le.thic",
+      "username": "1000000003",
       "enabled": true,
       "email": "le.thic@email.com",
       "firstName": "Thi C",

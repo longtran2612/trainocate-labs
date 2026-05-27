@@ -11,4 +11,6 @@ import java.util.UUID;
 public interface KycRepository extends JpaRepository<KycEntity, UUID> {
 
     Optional<KycEntity> findByUserId(UUID userId);
+
+    Optional<KycEntity> findByAccountNo(String accountNo);
 }

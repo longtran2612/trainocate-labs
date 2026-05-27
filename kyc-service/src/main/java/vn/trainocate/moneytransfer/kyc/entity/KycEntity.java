@@ -27,8 +27,11 @@ public class KycEntity {
     @Column(name = "kyc_id")
     private UUID kycId;
 
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id")
     private UUID userId;
+
+    @Column(name = "account_no", length = 20)
+    private String accountNo;
 
     @Column(name = "kyc_tier", length = 20, nullable = false)
     @Builder.Default

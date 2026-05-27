@@ -8,8 +8,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.trainocate.moneytransfer.auth.dto.request.LoginRequest;
 import vn.trainocate.moneytransfer.auth.dto.request.RefreshTokenRequest;
+import vn.trainocate.moneytransfer.auth.dto.request.RegisterRequest;
+import vn.trainocate.moneytransfer.auth.dto.request.UpdateUsernameRequest;
 import vn.trainocate.moneytransfer.auth.dto.request.ValidateTokenRequest;
 import vn.trainocate.moneytransfer.auth.dto.response.LoginResponse;
+import vn.trainocate.moneytransfer.auth.dto.response.RegisterResponse;
 import vn.trainocate.moneytransfer.auth.dto.response.ValidateTokenResponse;
 import vn.trainocate.moneytransfer.auth.entity.UserEntity;
 import vn.trainocate.moneytransfer.auth.exception.BusinessException;
@@ -28,6 +31,48 @@ public class AuthService {
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+
+    @Transactional
+    public RegisterResponse register(RegisterRequest request) {
+        // Use a temp username (UUID) — will be replaced by accountNo after account creation
+        String tempUsername = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+
+        userRepository.findByUsername(tempUsername).ifPresent(u -> {
+            throw new BusinessException("AUTH_DUPLICATE", "Username collision, please retry");
+        });
+
+        UserEntity user = UserEntity.builder()
+                .username(tempUsername)
+                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .phone(request.getPhone())
+                .email(request.getEmail())
+                .status("ACTIVE")
+                .build();
+
+        user = userRepository.save(user);
+        log.info("User registered: userId={}, tempUsername={}", user.getUserId(), tempUsername);
+
+        return RegisterResponse.builder()
+                .userId(user.getUserId())
+                .username(tempUsername)
+                .build();
+    }
+
+    @Transactional
+    public void updateUsername(UpdateUsernameRequest request) {
+        UserEntity user = userRepository.findById(request.getUserId())
+                .orElseThrow(() -> new BusinessException("AUTH_USER_NOT_FOUND", "User not found"));
+
+        userRepository.findByUsername(request.getNewUsername()).ifPresent(existing -> {
+            if (!existing.getUserId().equals(request.getUserId())) {
+                throw new BusinessException("AUTH_DUPLICATE_USERNAME", "Username already taken");
+            }
+        });
+
+        user.setUsername(request.getNewUsername());
+        userRepository.save(user);
+        log.info("Username updated: userId={}, newUsername={}", request.getUserId(), request.getNewUsername());
+    }
 
     @Transactional
     public LoginResponse login(LoginRequest request) {

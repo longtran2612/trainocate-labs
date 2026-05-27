@@ -1,0 +1,16 @@
+**/node_modules
+**/dist
+**/.gradle
+**/build/tmp
+**/build/classes
+**/build/generated
+**/build/reports
+**/target/classes
+**/target/generated-sources
+**/target/maven-status
+.git
+*.md
+money-transfer-web
+keycloak
+kong-gateway
+docker

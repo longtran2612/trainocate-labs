@@ -55,7 +55,7 @@
 						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"username\": \"nguyen.vana\",\n    \"password\": \"123456\"\n}"
+							"raw": "{\n    \"username\": \"1000000001\",\n    \"password\": \"123456\"\n}"
 						},
 						"url": { "raw": "{{auth_url}}/api/v1/auth/login", "host": ["{{auth_url}}"], "path": ["api","v1","auth","login"] }
 					}
@@ -634,7 +634,7 @@
 						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"username\": \"nguyen.vana\",\n    \"password\": \"123456\"\n}"
+							"raw": "{\n    \"username\": \"1000000001\",\n    \"password\": \"123456\"\n}"
 						},
 						"url": { "raw": "{{gateway_url}}/api/v1/auth/login", "host": ["{{gateway_url}}"], "path": ["api","v1","auth","login"] }
 					}
@@ -766,7 +766,7 @@
 						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"username\": \"nguyen.vana\",\n    \"password\": \"123456\"\n}"
+							"raw": "{\n    \"username\": \"1000000001\",\n    \"password\": \"123456\"\n}"
 						},
 						"url": { "raw": "{{kong_url}}/api/v1/auth/login", "host": ["{{kong_url}}"], "path": ["api","v1","auth","login"] }
 					}
@@ -917,7 +917,7 @@
 							"urlencoded": [
 								{ "key": "grant_type", "value": "password" },
 								{ "key": "client_id", "value": "money-transfer-client" },
-								{ "key": "username", "value": "nguyen.vana" },
+								{ "key": "username", "value": "1000000001" },
 								{ "key": "password", "value": "123456" }
 							]
 						},
@@ -925,7 +925,7 @@
 					}
 				},
 				{
-					"name": "10.2 Keycloak Login (tran.vanb)",
+					"name": "10.2 Keycloak Login (1000000002)",
 					"event": [
 						{
 							"listen": "test",
@@ -948,7 +948,7 @@
 							"urlencoded": [
 								{ "key": "grant_type", "value": "password" },
 								{ "key": "client_id", "value": "money-transfer-client" },
-								{ "key": "username", "value": "tran.vanb" },
+								{ "key": "username", "value": "1000000002" },
 								{ "key": "password", "value": "123456" }
 							]
 						},

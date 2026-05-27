@@ -12,4 +12,5 @@ import java.util.UUID;
 public class KycStatusRequest {
 
     private UUID userId;
+    private String accountNo;
 }

@@ -27,8 +27,7 @@ public class KycService {
     private final KycRepository kycRepository;
 
     public KycInfoResponse getKycInfo(KycInfoRequest request) {
-        KycEntity entity = kycRepository.findByUserId(request.getUserId())
-                .orElseThrow(() -> new BusinessException("KYC_NOT_FOUND", "KYC record not found for user"));
+        KycEntity entity = findKycEntity(request.getAccountNo(), request.getUserId());
 
         return KycInfoResponse.builder()
                 .kycId(entity.getKycId())
@@ -50,8 +49,7 @@ public class KycService {
     }
 
     public KycStatusResponse getKycStatus(KycStatusRequest request) {
-        KycEntity entity = kycRepository.findByUserId(request.getUserId())
-                .orElseThrow(() -> new BusinessException("KYC_NOT_FOUND", "KYC record not found for user"));
+        KycEntity entity = findKycEntity(request.getAccountNo(), request.getUserId());
 
         return KycStatusResponse.builder()
                 .status(entity.getStatus())
@@ -70,6 +68,9 @@ public class KycService {
         entity.setFullName(request.getFullName());
         entity.setIdNumber(request.getIdNumber());
         entity.setIdType(request.getIdType());
+        if (request.getAccountNo() != null) {
+            entity.setAccountNo(request.getAccountNo());
+        }
         entity.setStatus("VERIFIED");
         entity.setKycTier("TIER_1");
         entity.setVerifiedAt(LocalDateTime.now());
@@ -83,6 +84,18 @@ public class KycService {
                 .message("KYC verification completed successfully")
                 .kycTier("TIER_1")
                 .build();
+    }
+
+    private KycEntity findKycEntity(String accountNo, java.util.UUID userId) {
+        if (accountNo != null && !accountNo.isBlank()) {
+            return kycRepository.findByAccountNo(accountNo)
+                    .orElseThrow(() -> new BusinessException("KYC_NOT_FOUND", "KYC record not found for account"));
+        }
+        if (userId != null) {
+            return kycRepository.findByUserId(userId)
+                    .orElseThrow(() -> new BusinessException("KYC_NOT_FOUND", "KYC record not found for user"));
+        }
+        throw new BusinessException("KYC_INVALID_REQUEST", "accountNo or userId is required");
     }
 
     private KycTierResponse mapTierToLimits(String tier) {

@@ -12,6 +12,7 @@ import java.util.UUID;
 public class KycVerifyRequest {
 
     private UUID userId;
+    private String accountNo;
     private String idNumber;
     private String idType;
     private String fullName;

@@ -8,11 +8,14 @@ import org.springframework.web.bind.annotation.RestController;
 import vn.trainocate.moneytransfer.transaction.dto.ApiResponse;
 import vn.trainocate.moneytransfer.transaction.dto.request.CreateTransactionRequest;
 import vn.trainocate.moneytransfer.transaction.dto.request.ReverseTransactionRequest;
+import vn.trainocate.moneytransfer.transaction.dto.request.TransactionHistoryRequest;
 import vn.trainocate.moneytransfer.transaction.dto.request.TransactionInfoRequest;
 import vn.trainocate.moneytransfer.transaction.dto.request.UpdateTransactionStatusRequest;
 import vn.trainocate.moneytransfer.transaction.dto.response.ReverseTransactionResponse;
 import vn.trainocate.moneytransfer.transaction.dto.response.TransactionResponse;
 import vn.trainocate.moneytransfer.transaction.service.TransactionService;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/transactions")
@@ -39,5 +42,10 @@ public class TransactionController {
     @PostMapping("/update-status")
     public ApiResponse<TransactionResponse> updateStatus(@RequestBody UpdateTransactionStatusRequest request) {
         return ApiResponse.success(transactionService.updateStatus(request));
+    }
+
+    @PostMapping("/history")
+    public ApiResponse<List<TransactionResponse>> getHistory(@RequestBody TransactionHistoryRequest request) {
+        return ApiResponse.success(transactionService.getHistory(request));
     }
 }

@@ -1,0 +1,5 @@
+CREATE DATABASE auth;
+CREATE DATABASE account_db;
+CREATE DATABASE kyc_db;
+CREATE DATABASE limit_db;
+CREATE DATABASE transaction_db;

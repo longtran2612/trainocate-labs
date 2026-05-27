@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.trainocate.moneytransfer.limit.dto.request.LimitCheckRequest;
 import vn.trainocate.moneytransfer.limit.dto.request.LimitConsumeRequest;
 import vn.trainocate.moneytransfer.limit.dto.request.LimitInfoRequest;
+import vn.trainocate.moneytransfer.limit.dto.request.LimitInitRequest;
 import vn.trainocate.moneytransfer.limit.dto.response.LimitCheckResponse;
 import vn.trainocate.moneytransfer.limit.dto.response.LimitConsumeResponse;
 import vn.trainocate.moneytransfer.limit.dto.response.LimitInfoResponse;
@@ -77,11 +78,13 @@ public class LimitService {
                 .build();
     }
 
-    public LimitInfoResponse limitInfo(LimitInfoRequest request) {
-        LimitEntity entity = limitRepository.findByAccountNo(request.getAccountNo())
-                .orElseThrow(() -> new BusinessException("LIMIT_NOT_FOUND", "Limit record not found for account"));
+    public java.util.List<LimitInfoResponse> limitInfo(LimitInfoRequest request) {
+        java.util.List<LimitEntity> entities = limitRepository.findAllByAccountNo(request.getAccountNo());
+        if (entities.isEmpty()) {
+            throw new BusinessException("LIMIT_NOT_FOUND", "Limit record not found for account");
+        }
 
-        return LimitInfoResponse.builder()
+        return entities.stream().map(entity -> LimitInfoResponse.builder()
                 .accountNo(entity.getAccountNo())
                 .kycTier(entity.getKycTier())
                 .transferType(entity.getTransferType())
@@ -91,7 +94,7 @@ public class LimitService {
                 .usedDaily(entity.getUsedDaily())
                 .usedMonthly(entity.getUsedMonthly())
                 .resetAt(entity.getResetAt())
-                .build();
+                .build()).toList();
     }
 
     @Transactional
@@ -114,6 +117,13 @@ public class LimitService {
                 .remainingDaily(remainingDaily)
                 .remainingMonthly(remainingMonthly)
                 .build();
+    }
+
+    @Transactional
+    public void initLimits(LimitInitRequest request) {
+        findOrCreateLimit(request.getAccountNo(), "INTERNAL");
+        findOrCreateLimit(request.getAccountNo(), "EXTERNAL");
+        log.info("Limits initialized for accountNo={}", request.getAccountNo());
     }
 
     private LimitEntity findOrCreateLimit(String accountNo, String transferType) {

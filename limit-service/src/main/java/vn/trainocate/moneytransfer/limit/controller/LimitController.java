@@ -9,6 +9,7 @@ import vn.trainocate.moneytransfer.limit.dto.ApiResponse;
 import vn.trainocate.moneytransfer.limit.dto.request.LimitCheckRequest;
 import vn.trainocate.moneytransfer.limit.dto.request.LimitConsumeRequest;
 import vn.trainocate.moneytransfer.limit.dto.request.LimitInfoRequest;
+import vn.trainocate.moneytransfer.limit.dto.request.LimitInitRequest;
 import vn.trainocate.moneytransfer.limit.dto.response.LimitCheckResponse;
 import vn.trainocate.moneytransfer.limit.dto.response.LimitConsumeResponse;
 import vn.trainocate.moneytransfer.limit.dto.response.LimitInfoResponse;
@@ -27,12 +28,18 @@ public class LimitController {
     }
 
     @PostMapping("/limit-info")
-    public ApiResponse<LimitInfoResponse> limitInfo(@RequestBody LimitInfoRequest request) {
+    public ApiResponse<java.util.List<LimitInfoResponse>> limitInfo(@RequestBody LimitInfoRequest request) {
         return ApiResponse.success(limitService.limitInfo(request));
     }
 
     @PostMapping("/limit-consume")
     public ApiResponse<LimitConsumeResponse> limitConsume(@RequestBody LimitConsumeRequest request) {
         return ApiResponse.success(limitService.limitConsume(request));
+    }
+
+    @PostMapping("/init")
+    public ApiResponse<Void> initLimits(@RequestBody LimitInitRequest request) {
+        limitService.initLimits(request);
+        return ApiResponse.success(null);
     }
 }

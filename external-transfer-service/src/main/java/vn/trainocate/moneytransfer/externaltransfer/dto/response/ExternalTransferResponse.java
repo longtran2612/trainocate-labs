@@ -16,5 +16,6 @@ public class ExternalTransferResponse {
     private String referenceId;
     private String status;
     private String napasRef;
-    private LocalDateTime estimatedCompletion;
+    private String receiverName;
+    private LocalDateTime completedAt;
 }

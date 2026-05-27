@@ -1,0 +1,19 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: napas-simulator
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+# Simulator config
+napas:
+  simulator:
+    # Simulate processing delay in ms (0 = instant)
+    delay-ms: 500
+    # Failure rate 0.0 ~ 1.0 (0 = always success, 0.1 = 10% fail)
+    failure-rate: 0.0

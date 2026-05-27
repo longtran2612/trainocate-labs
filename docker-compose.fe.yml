@@ -1,0 +1,15 @@
+services:
+
+  money-transfer-web:
+    build:
+      context: ./money-transfer-web
+    container_name: mt-web
+    ports:
+      - "3000:80"
+    networks:
+      - money-transfer-net
+
+networks:
+  money-transfer-net:
+    external: true
+    name: money-transfer-net

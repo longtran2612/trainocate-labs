@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import vn.trainocate.moneytransfer.externaltransfer.client.AccountClient;
 import vn.trainocate.moneytransfer.externaltransfer.client.KycClient;
 import vn.trainocate.moneytransfer.externaltransfer.client.LimitClient;
+import vn.trainocate.moneytransfer.externaltransfer.client.NapasClient;
 import vn.trainocate.moneytransfer.externaltransfer.dto.ApiResponse;
 import vn.trainocate.moneytransfer.externaltransfer.dto.request.ExternalInquiryRequest;
 import vn.trainocate.moneytransfer.externaltransfer.dto.request.ExternalTransferRequest;
@@ -16,8 +17,8 @@ import vn.trainocate.moneytransfer.externaltransfer.exception.BusinessException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -27,18 +28,29 @@ public class ExternalTransferService {
     private final AccountClient accountClient;
     private final KycClient kycClient;
     private final LimitClient limitClient;
+    private final NapasClient napasClient;
     private final ObjectMapper objectMapper;
 
     public ExternalInquiryResponse inquiry(ExternalInquiryRequest request) {
         log.info("Processing external inquiry for accountNo={}, bankCode={}", request.getAccountNo(), request.getBankCode());
 
-        String bankName = mapBankName(request.getBankCode());
+        // Call NAPAS simulator for account name lookup
+        Map<String, Object> napasRequest = Map.of(
+                "bankCode", request.getBankCode(),
+                "accountNo", request.getAccountNo());
+        Map<String, Object> napasResult = extractData(napasClient.inquiry(napasRequest));
+
+        String responseCode = String.valueOf(napasResult.get("responseCode"));
+        if (!"00".equals(responseCode)) {
+            throw new BusinessException("NAPAS_INQUIRY_FAILED",
+                    String.valueOf(napasResult.getOrDefault("responseMessage", "NAPAS inquiry failed")));
+        }
 
         return ExternalInquiryResponse.builder()
-                .accountNo(request.getAccountNo())
-                .fullName("MOCK - " + request.getAccountNo())
-                .bankName(bankName)
-                .bankCode(request.getBankCode())
+                .accountNo(String.valueOf(napasResult.get("accountNo")))
+                .fullName(String.valueOf(napasResult.get("accountName")))
+                .bankName(String.valueOf(napasResult.get("bankName")))
+                .bankCode(String.valueOf(napasResult.get("bankCode")))
                 .status("ACTIVE")
                 .build();
     }
@@ -56,7 +68,7 @@ public class ExternalTransferService {
 
         // Step 2: Check KYC status
         Map<String, Object> kycResponse = extractData(
-                kycClient.getKycStatus(Map.of("userId", userId)));
+                kycClient.getKycStatus(Map.of("accountNo", request.getSenderAccountNo())));
         String kycStatus = String.valueOf(kycResponse.get("status"));
         if (!"VERIFIED".equals(kycStatus)) {
             throw new BusinessException("KYC_NOT_VERIFIED", "KYC verification is required before making transfers");
@@ -100,26 +112,54 @@ public class ExternalTransferService {
                 "referenceId", request.getReferenceId())));
         log.info("Limit consumed for accountNo={}", request.getSenderAccountNo());
 
-        // Step 7: External transfer — no credit (goes to NAPAS), leave in PENDING
-        String napasRef = "NAPAS-" + UUID.randomUUID().toString().substring(0, 8);
-        log.info("External transfer pending NAPAS processing: referenceId={}, napasRef={}", request.getReferenceId(), napasRef);
+        // Step 7: Call NAPAS simulator to process external transfer
+        Map<String, Object> napasRequest = new HashMap<>();
+        napasRequest.put("referenceId", request.getReferenceId());
+        napasRequest.put("senderBankCode", "970406");
+        napasRequest.put("senderAccountNo", request.getSenderAccountNo());
+        napasRequest.put("receiverBankCode", request.getReceiverBankCode());
+        napasRequest.put("receiverAccountNo", request.getReceiverAccountNo());
+        if (request.getReceiverName() != null) napasRequest.put("receiverName", request.getReceiverName());
+        napasRequest.put("amount", request.getAmount());
+        napasRequest.put("currency", request.getCurrency() != null ? request.getCurrency() : "VND");
+        if (request.getDescription() != null) napasRequest.put("description", request.getDescription());
+
+        Map<String, Object> napasResult = extractData(napasClient.transfer(napasRequest));
+        String napasResponseCode = String.valueOf(napasResult.get("responseCode"));
+        String napasRef = String.valueOf(napasResult.get("napasRef"));
+
+        if (!"00".equals(napasResponseCode)) {
+            // NAPAS rejected — refund the sender
+            log.warn("NAPAS transfer FAILED: ref={}, napasRef={}, code={}, msg={}",
+                    request.getReferenceId(), napasRef, napasResponseCode, napasResult.get("responseMessage"));
+
+            // Refund: credit back to sender
+            Map<String, Object> refundRequest = new HashMap<>();
+            refundRequest.put("accountNo", request.getSenderAccountNo());
+            refundRequest.put("amount", request.getAmount());
+            refundRequest.put("referenceId", "REFUND-" + request.getReferenceId());
+            refundRequest.put("description", "Refund for failed NAPAS transfer " + request.getReferenceId());
+            try {
+                extractData(accountClient.credit(refundRequest));
+                log.info("Refund successful for accountNo={}", request.getSenderAccountNo());
+            } catch (Exception e) {
+                log.error("Refund FAILED for accountNo={}, manual intervention required", request.getSenderAccountNo(), e);
+            }
+
+            throw new BusinessException("NAPAS_TRANSFER_FAILED",
+                    String.valueOf(napasResult.getOrDefault("responseMessage", "NAPAS transfer failed")));
+        }
+
+        String receiverName = String.valueOf(napasResult.getOrDefault("receiverName", ""));
+        log.info("External transfer completed: ref={}, napasRef={}", request.getReferenceId(), napasRef);
 
         return ExternalTransferResponse.builder()
                 .referenceId(request.getReferenceId())
-                .status("PENDING")
+                .status("COMPLETED")
                 .napasRef(napasRef)
-                .estimatedCompletion(LocalDateTime.now().plusMinutes(5))
+                .receiverName(receiverName)
+                .completedAt(LocalDateTime.now())
                 .build();
-    }
-
-    private String mapBankName(String bankCode) {
-        if (bankCode == null) return "Unknown Bank";
-        return switch (bankCode.toUpperCase()) {
-            case "VCB" -> "Vietcombank";
-            case "TCB" -> "Techcombank";
-            case "MBB" -> "MBBank";
-            default -> bankCode + " Bank";
-        };
     }
 
     @SuppressWarnings("unchecked")

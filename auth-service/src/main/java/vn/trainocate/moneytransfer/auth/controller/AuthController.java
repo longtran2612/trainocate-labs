@@ -9,8 +9,11 @@ import org.springframework.web.bind.annotation.RestController;
 import vn.trainocate.moneytransfer.auth.dto.ApiResponse;
 import vn.trainocate.moneytransfer.auth.dto.request.LoginRequest;
 import vn.trainocate.moneytransfer.auth.dto.request.RefreshTokenRequest;
+import vn.trainocate.moneytransfer.auth.dto.request.RegisterRequest;
+import vn.trainocate.moneytransfer.auth.dto.request.UpdateUsernameRequest;
 import vn.trainocate.moneytransfer.auth.dto.request.ValidateTokenRequest;
 import vn.trainocate.moneytransfer.auth.dto.response.LoginResponse;
+import vn.trainocate.moneytransfer.auth.dto.response.RegisterResponse;
 import vn.trainocate.moneytransfer.auth.dto.response.ValidateTokenResponse;
 import vn.trainocate.moneytransfer.auth.service.AuthService;
 
@@ -20,6 +23,17 @@ import vn.trainocate.moneytransfer.auth.service.AuthService;
 public class AuthController {
 
     private final AuthService authService;
+
+    @PostMapping("/register")
+    public ApiResponse<RegisterResponse> register(@RequestBody RegisterRequest request) {
+        return ApiResponse.success(authService.register(request));
+    }
+
+    @PostMapping("/update-username")
+    public ApiResponse<Void> updateUsername(@RequestBody UpdateUsernameRequest request) {
+        authService.updateUsername(request);
+        return ApiResponse.success(null);
+    }
 
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@RequestBody LoginRequest request) {

@@ -18,4 +18,7 @@ public interface AccountClient {
 
     @PostMapping("/api/v1/accounts/debit")
     ApiResponse debit(@RequestBody Map<String, Object> request);
+
+    @PostMapping("/api/v1/accounts/credit")
+    ApiResponse credit(@RequestBody Map<String, Object> request);
 }

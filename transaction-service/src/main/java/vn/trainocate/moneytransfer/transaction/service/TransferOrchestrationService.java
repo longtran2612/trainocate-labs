@@ -115,8 +115,13 @@ public class TransferOrchestrationService {
                 if (request.getPin() != null) externalRequest.put("pin", request.getPin());
 
                 transferResult = extractData(externalTransferClient.transfer(externalRequest));
-                // External transfer stays PENDING — awaits NAPAS confirmation
-                log.info("External transfer pending: txId={}, napasRef={}", tx.getTxId(), transferResult.get("napasRef"));
+
+                // External transfer completed via NAPAS — mark COMPLETED
+                transactionService.updateStatus(UpdateTransactionStatusRequest.builder()
+                        .txId(tx.getTxId())
+                        .status("COMPLETED")
+                        .build());
+                log.info("External transfer completed: txId={}, napasRef={}", tx.getTxId(), transferResult.get("napasRef"));
             }
 
             // Merge txId into the result

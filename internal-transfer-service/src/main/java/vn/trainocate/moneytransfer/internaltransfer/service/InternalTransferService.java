@@ -60,7 +60,7 @@ public class InternalTransferService {
 
         // Step 2: Check KYC status
         Map<String, Object> kycResponse = extractData(
-                kycClient.getKycStatus(Map.of("userId", userId)));
+                kycClient.getKycStatus(Map.of("accountNo", request.getSenderAccountNo())));
         String kycStatus = String.valueOf(kycResponse.get("status"));
         if (!"VERIFIED".equals(kycStatus)) {
             throw new BusinessException("KYC_NOT_VERIFIED", "KYC verification is required before making transfers");
