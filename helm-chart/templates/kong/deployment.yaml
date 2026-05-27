@@ -35,6 +35,8 @@ spec:
               value: "0.0.0.0:8001"
             - name: KONG_LOG_LEVEL
               value: info
+            - name: KONG_NGINX_WORKER_PROCESSES
+              value: "2"
           volumeMounts:
             - name: kong-config
               mountPath: /kong

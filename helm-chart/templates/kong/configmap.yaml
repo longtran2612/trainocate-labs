@@ -58,15 +58,3 @@ data:
           header_name: X-Correlation-ID
           generator: uuid
           echo_downstream: true
-
-      - name: rate-limiting
-        service: auth-service
-        config:
-          minute: {{ .Values.kong.rateLimiting.auth.minute }}
-          policy: local
-
-      - name: rate-limiting
-        service: transaction-service
-        config:
-          minute: {{ .Values.kong.rateLimiting.transaction.minute }}
-          policy: local
