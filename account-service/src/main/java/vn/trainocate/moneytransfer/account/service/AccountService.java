@@ -7,8 +7,10 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.trainocate.moneytransfer.account.dto.request.CheckBalanceRequest;
 import vn.trainocate.moneytransfer.account.dto.request.CreditRequest;
 import vn.trainocate.moneytransfer.account.dto.request.CustomerInfoRequest;
+import vn.trainocate.moneytransfer.account.dto.request.CreateAccountRequest;
 import vn.trainocate.moneytransfer.account.dto.request.DebitRequest;
 import vn.trainocate.moneytransfer.account.dto.request.InquiryRequest;
+import vn.trainocate.moneytransfer.account.dto.request.UpdateAccountRequest;
 import vn.trainocate.moneytransfer.account.dto.response.BalanceResponse;
 import vn.trainocate.moneytransfer.account.dto.response.CustomerInfoResponse;
 import vn.trainocate.moneytransfer.account.dto.response.DebitCreditResponse;
@@ -18,6 +20,7 @@ import vn.trainocate.moneytransfer.account.exception.BusinessException;
 import vn.trainocate.moneytransfer.account.repository.AccountRepository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -104,6 +107,86 @@ public class AccountService {
                 .newBalance(account.getBalance())
                 .timestamp(LocalDateTime.now())
                 .build();
+    }
+
+    public List<CustomerInfoResponse> getAllAccounts() {
+        return accountRepository.findAll().stream()
+                .map(this::toCustomerInfoResponse)
+                .toList();
+    }
+
+    @Transactional
+    public CustomerInfoResponse createAccount(CreateAccountRequest request) {
+        // Check duplicate CIF
+        accountRepository.findByCif(request.getCif()).ifPresent(existing -> {
+            throw new BusinessException("DUPLICATE_CIF", "Account with CIF " + request.getCif() + " already exists");
+        });
+
+        // Check duplicate mobile
+        if (request.getMobile() != null) {
+            accountRepository.findByMobile(request.getMobile()).ifPresent(existing -> {
+                throw new BusinessException("DUPLICATE_MOBILE", "Account with mobile " + request.getMobile() + " already exists");
+            });
+        }
+
+        // Generate account number
+        String accountNo = generateAccountNo();
+
+        AccountEntity account = AccountEntity.builder()
+                .userId(request.getUserId())
+                .accountNo(accountNo)
+                .cif(request.getCif())
+                .fullName(request.getFullName())
+                .dob(request.getDob())
+                .address(request.getAddress())
+                .mobile(request.getMobile())
+                .email(request.getEmail())
+                .currency(request.getCurrency() != null ? request.getCurrency() : "VND")
+                .build();
+
+        accountRepository.save(account);
+        log.info("Account created: accountNo={}, cif={}", accountNo, request.getCif());
+
+        return toCustomerInfoResponse(account);
+    }
+
+    @Transactional
+    public CustomerInfoResponse updateAccount(UpdateAccountRequest request) {
+        AccountEntity account = accountRepository.findByAccountNo(request.getAccountNo())
+                .orElseThrow(() -> new BusinessException("ACCOUNT_NOT_FOUND", "Account not found with accountNo: " + request.getAccountNo()));
+
+        if (request.getFullName() != null) {
+            account.setFullName(request.getFullName());
+        }
+        if (request.getDob() != null) {
+            account.setDob(request.getDob());
+        }
+        if (request.getAddress() != null) {
+            account.setAddress(request.getAddress());
+        }
+        if (request.getMobile() != null) {
+            // Check duplicate mobile (exclude current account)
+            accountRepository.findByMobile(request.getMobile()).ifPresent(existing -> {
+                if (!existing.getAccountNo().equals(request.getAccountNo())) {
+                    throw new BusinessException("DUPLICATE_MOBILE", "Mobile " + request.getMobile() + " already used by another account");
+                }
+            });
+            account.setMobile(request.getMobile());
+        }
+        if (request.getEmail() != null) {
+            account.setEmail(request.getEmail());
+        }
+
+        accountRepository.save(account);
+        log.info("Account updated: accountNo={}", request.getAccountNo());
+
+        return toCustomerInfoResponse(account);
+    }
+
+    private String generateAccountNo() {
+        return accountRepository.findTopByOrderByAccountNoDesc()
+                .map(latest -> String.valueOf(Long.parseLong(latest.getAccountNo()) + 1))
+                .orElse("1000000001");
     }
 
     private CustomerInfoResponse toCustomerInfoResponse(AccountEntity account) {

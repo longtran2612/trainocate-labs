@@ -184,6 +184,38 @@
 						},
 						"url": { "raw": "{{account_url}}/api/v1/accounts/credit", "host": ["{{account_url}}"], "path": ["api","v1","accounts","credit"] }
 					}
+				},
+				{
+					"name": "2.7 Get All Accounts",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"url": { "raw": "{{account_url}}/api/v1/accounts", "host": ["{{account_url}}"], "path": ["api","v1","accounts"] }
+					}
+				},
+				{
+					"name": "2.8 Create Account",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"44444444-4444-4444-4444-444444444444\",\n    \"cif\": \"CIF000004\",\n    \"fullName\": \"Pham Van D\",\n    \"dob\": \"1995-03-10\",\n    \"mobile\": \"0901000004\",\n    \"email\": \"pham.vand@email.com\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts", "host": ["{{account_url}}"], "path": ["api","v1","accounts"] }
+					}
+				},
+				{
+					"name": "2.9 Update Account",
+					"request": {
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"1000000001\",\n    \"fullName\": \"Nguyen Van A Updated\",\n    \"address\": \"123 Nguyen Hue, Q1, HCM\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts", "host": ["{{account_url}}"], "path": ["api","v1","accounts"] }
+					}
 				}
 			]
 		},

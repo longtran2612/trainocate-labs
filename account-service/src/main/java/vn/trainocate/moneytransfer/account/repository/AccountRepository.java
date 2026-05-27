@@ -15,4 +15,6 @@ public interface AccountRepository extends JpaRepository<AccountEntity, UUID> {
     Optional<AccountEntity> findByMobile(String mobile);
 
     Optional<AccountEntity> findByCif(String cif);
+
+    Optional<AccountEntity> findTopByOrderByAccountNoDesc();
 }
