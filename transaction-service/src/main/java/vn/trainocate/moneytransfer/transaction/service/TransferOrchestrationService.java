@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import vn.trainocate.moneytransfer.transaction.client.ExternalTransferClient;
 import vn.trainocate.moneytransfer.transaction.client.InternalTransferClient;
+import vn.trainocate.moneytransfer.transaction.saga.SagaOrchestrator;
 import vn.trainocate.moneytransfer.transaction.dto.ApiResponse;
 import vn.trainocate.moneytransfer.transaction.dto.request.CreateTransactionRequest;
 import vn.trainocate.moneytransfer.transaction.dto.request.InquiryRequest;
@@ -28,6 +29,7 @@ public class TransferOrchestrationService {
     private final InternalTransferClient internalTransferClient;
     private final ExternalTransferClient externalTransferClient;
     private final TransactionService transactionService;
+    private final SagaOrchestrator sagaOrchestrator;
     private final ObjectMapper objectMapper;
 
     @Value("${app.our-bank-code:" + VIKKIBANK_CODE + "}")
@@ -84,23 +86,14 @@ public class TransferOrchestrationService {
             Map<String, Object> transferResult;
 
             if (internal) {
-                Map<String, Object> internalRequest = new HashMap<>();
-                internalRequest.put("referenceId", request.getReferenceId());
-                internalRequest.put("senderAccountNo", request.getSenderAccountNo());
-                internalRequest.put("receiverAccountNo", request.getReceiverAccountNo());
-                internalRequest.put("amount", request.getAmount());
-                internalRequest.put("currency", request.getCurrency());
-                if (request.getDescription() != null) internalRequest.put("description", request.getDescription());
-                if (request.getPin() != null) internalRequest.put("pin", request.getPin());
+                // ── Saga Orchestration for Internal Transfer ──────────────
+                transferResult = sagaOrchestrator.executeInternalTransferSaga(tx, request);
 
-                transferResult = extractData(internalTransferClient.transfer(internalRequest));
-
-                // Internal transfer completed — mark COMPLETED
                 transactionService.updateStatus(UpdateTransactionStatusRequest.builder()
                         .txId(tx.getTxId())
                         .status("COMPLETED")
                         .build());
-                log.info("Internal transfer completed: txId={}", tx.getTxId());
+                log.info("Internal transfer saga completed: txId={}", tx.getTxId());
             } else {
                 Map<String, Object> externalRequest = new HashMap<>();
                 externalRequest.put("referenceId", request.getReferenceId());

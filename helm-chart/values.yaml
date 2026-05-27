@@ -40,6 +40,22 @@ kong:
     limits:
       cpu: 500m
       memory: 1Gi
+  routes:
+    - service: auth-service
+      port: 8081
+      path: /api/v1/auth
+    - service: account-service
+      port: 8082
+      path: /api/v1/accounts
+    - service: kyc-service
+      port: 8083
+      path: /api/v1/kyc
+    - service: limit-service
+      port: 8084
+      path: /api/v1/limits
+    - service: transaction-service
+      port: 8085
+      path: /api/v1/transactions
 
 # -- Frontend (React + nginx)
 frontend:
@@ -57,7 +73,7 @@ frontend:
 
 # -- Java service defaults
 javaDefaults:
-  imagePullPolicy: Never
+  imagePullPolicy: IfNotPresent
   replicas: 1
   springProfile: k8s
   javaOpts: "-Xms128m -Xmx384m"

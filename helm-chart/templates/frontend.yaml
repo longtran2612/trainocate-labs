@@ -52,7 +52,7 @@ spec:
       containers:
         - name: money-transfer-web
           image: {{ .Values.frontend.image }}
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
           readinessProbe:

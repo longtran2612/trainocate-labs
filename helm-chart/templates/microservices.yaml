@@ -84,10 +84,13 @@ metadata:
     app: {{ .name }}
     {{- include "money-transfer.labels" $ | nindent 4 }}
 spec:
-  type: ClusterIP
+  type: {{ if .nodePort }}NodePort{{ else }}ClusterIP{{ end }}
   ports:
     - port: {{ .port }}
       targetPort: {{ .port }}
+      {{- if .nodePort }}
+      nodePort: {{ .nodePort }}
+      {{- end }}
   selector:
     app: {{ .name }}
 {{- end }}
