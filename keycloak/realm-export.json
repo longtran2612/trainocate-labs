@@ -1,0 +1,107 @@
+{
+  "realm": "money-transfer",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "accessTokenLifespan": 3600,
+  "ssoSessionMaxLifespan": 86400,
+  "roles": {
+    "realm": [
+      { "name": "USER", "description": "Standard user role" },
+      { "name": "ADMIN", "description": "Administrator role" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "money-transfer-client",
+      "name": "Money Transfer Client",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
+      "defaultClientScopes": ["openid", "profile", "email", "roles"],
+      "attributes": {
+        "access.token.lifespan": "3600"
+      }
+    },
+    {
+      "clientId": "money-transfer-service",
+      "name": "Money Transfer Service (Confidential)",
+      "enabled": true,
+      "publicClient": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "secret": "money-transfer-secret",
+      "redirectUris": ["*"],
+      "defaultClientScopes": ["openid", "profile", "email", "roles"]
+    }
+  ],
+  "users": [
+    {
+      "username": "nguyen.vana",
+      "enabled": true,
+      "email": "nguyen.vana@email.com",
+      "firstName": "Van A",
+      "lastName": "Nguyen",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "123456",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["USER"]
+    },
+    {
+      "username": "tran.vanb",
+      "enabled": true,
+      "email": "tran.vanb@email.com",
+      "firstName": "Van B",
+      "lastName": "Tran",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "123456",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["USER"]
+    },
+    {
+      "username": "le.thic",
+      "enabled": true,
+      "email": "le.thic@email.com",
+      "firstName": "Thi C",
+      "lastName": "Le",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "123456",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["USER"]
+    },
+    {
+      "username": "admin",
+      "enabled": true,
+      "email": "admin@moneytransfer.vn",
+      "firstName": "Admin",
+      "lastName": "System",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["USER", "ADMIN"]
+    }
+  ]
+}

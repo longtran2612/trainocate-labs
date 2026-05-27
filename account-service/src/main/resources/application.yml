@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: account-service
+  profiles:
+    active: keycloak
   datasource:
     url: jdbc:postgresql://localhost:5432/account_db
     username: postgres

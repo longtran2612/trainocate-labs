@@ -8,6 +8,8 @@
 		{ "key": "gateway_url", "value": "http://localhost:8080" },
 		{ "key": "kong_url", "value": "http://localhost:8000" },
 		{ "key": "k8s_url", "value": "http://localhost:30000" },
+		{ "key": "keycloak_url", "value": "http://localhost:9090" },
+		{ "key": "kc_token", "value": "" },
 		{ "key": "auth_url", "value": "http://localhost:8081" },
 		{ "key": "account_url", "value": "http://localhost:8082" },
 		{ "key": "kyc_url", "value": "http://localhost:8083" },
@@ -879,6 +881,250 @@
 							"raw": "{\n    \"userId\": \"{{user_id}}\"\n}"
 						},
 						"url": { "raw": "{{kong_url}}/api/v1/kyc/get-kyc-status", "host": ["{{kong_url}}"], "path": ["api","v1","kyc","get-kyc-status"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "10. Keycloak Auth",
+			"description": "Keycloak OAuth2/OIDC authentication.\nPre-req: docker compose up -d (in keycloak/ folder)\nServices must run with profile: --spring.profiles.active=keycloak\nKeycloak Admin: http://localhost:9090 (admin/admin)",
+			"item": [
+				{
+					"name": "10.1 Keycloak Login (Get Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.access_token) {",
+									"    pm.collectionVariables.set('kc_token', jsonData.access_token);",
+									"    pm.test('Keycloak login successful', function() {",
+									"        pm.expect(jsonData.access_token).to.not.be.empty;",
+									"        pm.expect(jsonData.token_type).to.eql('Bearer');",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{ "key": "grant_type", "value": "password" },
+								{ "key": "client_id", "value": "money-transfer-client" },
+								{ "key": "username", "value": "nguyen.vana" },
+								{ "key": "password", "value": "123456" }
+							]
+						},
+						"url": { "raw": "{{keycloak_url}}/realms/money-transfer/protocol/openid-connect/token", "host": ["{{keycloak_url}}"], "path": ["realms","money-transfer","protocol","openid-connect","token"] }
+					}
+				},
+				{
+					"name": "10.2 Keycloak Login (tran.vanb)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.access_token) {",
+									"    pm.collectionVariables.set('kc_token', jsonData.access_token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{ "key": "grant_type", "value": "password" },
+								{ "key": "client_id", "value": "money-transfer-client" },
+								{ "key": "username", "value": "tran.vanb" },
+								{ "key": "password", "value": "123456" }
+							]
+						},
+						"url": { "raw": "{{keycloak_url}}/realms/money-transfer/protocol/openid-connect/token", "host": ["{{keycloak_url}}"], "path": ["realms","money-transfer","protocol","openid-connect","token"] }
+					}
+				},
+				{
+					"name": "10.3 Keycloak Login (admin)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.access_token) {",
+									"    pm.collectionVariables.set('kc_token', jsonData.access_token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{ "key": "grant_type", "value": "password" },
+								{ "key": "client_id", "value": "money-transfer-client" },
+								{ "key": "username", "value": "admin" },
+								{ "key": "password", "value": "admin123" }
+							]
+						},
+						"url": { "raw": "{{keycloak_url}}/realms/money-transfer/protocol/openid-connect/token", "host": ["{{keycloak_url}}"], "path": ["realms","money-transfer","protocol","openid-connect","token"] }
+					}
+				},
+				{
+					"name": "10.4 Keycloak User Info",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{kc_token}}" }],
+						"url": { "raw": "{{keycloak_url}}/realms/money-transfer/protocol/openid-connect/userinfo", "host": ["{{keycloak_url}}"], "path": ["realms","money-transfer","protocol","openid-connect","userinfo"] }
+					}
+				},
+				{
+					"name": "10.5 [KC] Get All Accounts (with token)",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{kc_token}}" }],
+						"url": { "raw": "{{account_url}}/api/v1/accounts", "host": ["{{account_url}}"], "path": ["api","v1","accounts"] }
+					}
+				},
+				{
+					"name": "10.6 [KC] Get All Accounts (NO token → 401)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Should return 401 Unauthorized', function() {",
+									"    pm.expect(pm.response.code).to.eql(401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": { "raw": "{{account_url}}/api/v1/accounts", "host": ["{{account_url}}"], "path": ["api","v1","accounts"] }
+					}
+				},
+				{
+					"name": "10.7 [KC] Inquiry Account",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{kc_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"1000000001\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts/inquiry", "host": ["{{account_url}}"], "path": ["api","v1","accounts","inquiry"] }
+					}
+				},
+				{
+					"name": "10.8 [KC] Check Balance",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{kc_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{sender_account_no}}\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts/check-balance", "host": ["{{account_url}}"], "path": ["api","v1","accounts","check-balance"] }
+					}
+				},
+				{
+					"name": "10.9 [KC] KYC Status",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{kc_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{user_id}}\"\n}"
+						},
+						"url": { "raw": "{{kyc_url}}/api/v1/kyc/get-kyc-status", "host": ["{{kyc_url}}"], "path": ["api","v1","kyc","get-kyc-status"] }
+					}
+				},
+				{
+					"name": "10.10 [KC] Limit Info",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{kc_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountNo\": \"{{sender_account_no}}\"\n}"
+						},
+						"url": { "raw": "{{limit_url}}/api/v1/limits/limit-info", "host": ["{{limit_url}}"], "path": ["api","v1","limits","limit-info"] }
+					}
+				},
+				{
+					"name": "10.11 [KC] Internal Transfer (full flow)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.collectionVariables.set('tx_id', jsonData.data.txId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{kc_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"referenceId\": \"KC-INT-{{$timestamp}}\",\n    \"senderAccountNo\": \"{{sender_account_no}}\",\n    \"receiverAccountNo\": \"{{receiver_account_no}}\",\n    \"amount\": 500000,\n    \"bankCode\": \"970406\",\n    \"currency\": \"VND\",\n    \"description\": \"Internal transfer via Keycloak token\",\n    \"pin\": \"123456\"\n}"
+						},
+						"url": { "raw": "{{transaction_url}}/api/v1/transactions/transfer", "host": ["{{transaction_url}}"], "path": ["api","v1","transactions","transfer"] }
+					}
+				},
+				{
+					"name": "10.12 [KC] Create Account",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{kc_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"55555555-5555-5555-5555-555555555555\",\n    \"cif\": \"CIF000005\",\n    \"fullName\": \"Hoang Van E\",\n    \"dob\": \"1998-07-22\",\n    \"mobile\": \"0901000005\",\n    \"email\": \"hoang.vane@email.com\"\n}"
+						},
+						"url": { "raw": "{{account_url}}/api/v1/accounts", "host": ["{{account_url}}"], "path": ["api","v1","accounts"] }
 					}
 				}
 			]
