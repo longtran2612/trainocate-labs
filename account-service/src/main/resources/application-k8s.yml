@@ -7,3 +7,9 @@ spring:
     url: jdbc:postgresql://postgresql:5432/account_db
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:123456}
+  data:
+    redis:
+      host: redis
+      port: 6379
+  kafka:
+    bootstrap-servers: kafka:9092
