@@ -10,6 +10,7 @@ import vn.trainocate.moneytransfer.limit.dto.request.LimitCheckRequest;
 import vn.trainocate.moneytransfer.limit.dto.request.LimitConsumeRequest;
 import vn.trainocate.moneytransfer.limit.dto.request.LimitInfoRequest;
 import vn.trainocate.moneytransfer.limit.dto.request.LimitInitRequest;
+import vn.trainocate.moneytransfer.limit.dto.request.LimitReleaseRequest;
 import vn.trainocate.moneytransfer.limit.dto.response.LimitCheckResponse;
 import vn.trainocate.moneytransfer.limit.dto.response.LimitConsumeResponse;
 import vn.trainocate.moneytransfer.limit.dto.response.LimitInfoResponse;
@@ -40,6 +41,13 @@ public class LimitController {
     @PostMapping("/init")
     public ApiResponse<Void> initLimits(@RequestBody LimitInitRequest request) {
         limitService.initLimits(request);
+        return ApiResponse.success(null);
+    }
+
+    /** Saga compensation — release previously consumed limit */
+    @PostMapping("/limit-release")
+    public ApiResponse<Void> limitRelease(@RequestBody LimitReleaseRequest request) {
+        limitService.limitRelease(request);
         return ApiResponse.success(null);
     }
 }

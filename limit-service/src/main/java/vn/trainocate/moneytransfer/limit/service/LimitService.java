@@ -8,6 +8,7 @@ import vn.trainocate.moneytransfer.limit.dto.request.LimitCheckRequest;
 import vn.trainocate.moneytransfer.limit.dto.request.LimitConsumeRequest;
 import vn.trainocate.moneytransfer.limit.dto.request.LimitInfoRequest;
 import vn.trainocate.moneytransfer.limit.dto.request.LimitInitRequest;
+import vn.trainocate.moneytransfer.limit.dto.request.LimitReleaseRequest;
 import vn.trainocate.moneytransfer.limit.dto.response.LimitCheckResponse;
 import vn.trainocate.moneytransfer.limit.dto.response.LimitConsumeResponse;
 import vn.trainocate.moneytransfer.limit.dto.response.LimitInfoResponse;
@@ -117,6 +118,25 @@ public class LimitService {
                 .remainingDaily(remainingDaily)
                 .remainingMonthly(remainingMonthly)
                 .build();
+    }
+
+    /**
+     * Compensation for limitConsume — subtract the amount back from usedDaily/usedMonthly.
+     * Called by the Saga orchestrator when a transfer fails after limit was consumed.
+     */
+    @Transactional
+    public void limitRelease(LimitReleaseRequest request) {
+        LimitEntity entity = findOrCreateLimit(request.getAccountNo(), request.getTransferType());
+
+        BigDecimal newUsedDaily = entity.getUsedDaily().subtract(request.getAmount()).max(BigDecimal.ZERO);
+        BigDecimal newUsedMonthly = entity.getUsedMonthly().subtract(request.getAmount()).max(BigDecimal.ZERO);
+
+        entity.setUsedDaily(newUsedDaily);
+        entity.setUsedMonthly(newUsedMonthly);
+        limitRepository.save(entity);
+
+        log.info("Limit released (saga compensation): accountNo={}, amount={}, txId={}",
+                request.getAccountNo(), request.getAmount(), request.getTxId());
     }
 
     @Transactional

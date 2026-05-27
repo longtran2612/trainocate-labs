@@ -13,9 +13,12 @@ import vn.trainocate.moneytransfer.transaction.dto.request.TransactionInfoReques
 import vn.trainocate.moneytransfer.transaction.dto.request.UpdateTransactionStatusRequest;
 import vn.trainocate.moneytransfer.transaction.dto.response.ReverseTransactionResponse;
 import vn.trainocate.moneytransfer.transaction.dto.response.TransactionResponse;
+import vn.trainocate.moneytransfer.transaction.entity.SagaStateEntity;
+import vn.trainocate.moneytransfer.transaction.repository.SagaStateRepository;
 import vn.trainocate.moneytransfer.transaction.service.TransactionService;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/transactions")
@@ -23,6 +26,7 @@ import java.util.List;
 public class TransactionController {
 
     private final TransactionService transactionService;
+    private final SagaStateRepository sagaStateRepository;
 
     @PostMapping("/create-transaction")
     public ApiResponse<TransactionResponse> createTransaction(@RequestBody CreateTransactionRequest request) {
@@ -47,5 +51,15 @@ public class TransactionController {
     @PostMapping("/history")
     public ApiResponse<List<TransactionResponse>> getHistory(@RequestBody TransactionHistoryRequest request) {
         return ApiResponse.success(transactionService.getHistory(request));
+    }
+
+    /** Get saga state for a given txId — useful for debugging saga compensation */
+    @PostMapping("/saga-state")
+    public ApiResponse<SagaStateEntity> getSagaState(@RequestBody java.util.Map<String, String> request) {
+        UUID txId = UUID.fromString(request.get("txId"));
+        SagaStateEntity saga = sagaStateRepository.findByTxId(txId)
+                .orElseThrow(() -> new vn.trainocate.moneytransfer.transaction.exception.BusinessException(
+                        "SAGA_NOT_FOUND", "No saga found for txId: " + txId));
+        return ApiResponse.success(saga);
     }
 }
