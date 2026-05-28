@@ -10,6 +10,6 @@ import java.util.Map;
 @FeignClient(name = "kyc-service")
 public interface KycClient {
 
-    @PostMapping("/api/v1/kyc/status")
+    @PostMapping("/api/v1/kyc/get-kyc-status")
     ApiResponse getKycStatus(@RequestBody Map<String, Object> request);
 }

@@ -11,6 +11,12 @@ spring:
     openfeign:
       client:
         config:
+          kyc-service:
+            url: http://kyc-service:8083
+          account-service:
+            url: http://account-service:8082
+          limit-service:
+            url: http://limit-service:8084
           internal-transfer-service:
             url: http://internal-transfer-service:8086
           external-transfer-service:

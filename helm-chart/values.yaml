@@ -37,17 +37,38 @@ postgresql:
       cpu: 500m
       memory: 512Mi
 
-# -- Kafka (KRaft mode, single node)
+# -- Kafka (KRaft mode, CDC event streaming)
 kafka:
-  enabled: true
-  image: bitnami/kafka:3.9
+  image: apache/kafka:3.8.0
   resources:
     requests:
       cpu: 200m
-      memory: 384Mi
+      memory: 512Mi
     limits:
       cpu: 500m
-      memory: 768Mi
+      memory: 1Gi
+
+# -- Redis (CQRS read model cache)
+redis:
+  image: redis:7-alpine
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# -- Debezium Kafka Connect (CDC)
+debezium:
+  image: quay.io/debezium/connect:2.7
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
 
 # -- Kong Gateway (DB-less)
 kong:
@@ -138,6 +159,15 @@ services:
     hasKafka: true
     hasRedis: true
     springProfiles: "k8s,keycloak"
+    extraEnv:
+      - name: SPRING_DATA_REDIS_HOST
+        value: redis
+      - name: SPRING_DATA_REDIS_PORT
+        value: "6379"
+      - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        value: kafka:9092
+      - name: ACCOUNT_READ_MODEL_MAX_STALENESS_MS
+        value: "30000"
 
   - name: kyc-service
     port: 8083

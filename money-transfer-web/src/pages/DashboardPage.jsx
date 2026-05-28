@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import * as accountApi from '../api/accountApi';
 import * as kycApi from '../api/kycApi';
@@ -22,6 +23,7 @@ function formatDateTime(dateStr) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const location = useLocation();
   const [account, setAccount] = useState(null);
   const [balance, setBalance] = useState(null);
   const [kyc, setKyc] = useState(null);
@@ -29,10 +31,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Re-fetch every time the user navigates to this page (location.key changes on each visit)
   useEffect(() => {
     if (!user?.accountNo) return;
     loadData();
-  }, [user?.accountNo]);
+  }, [user?.accountNo, location.key]);
 
   const loadData = async () => {
     setLoading(true);
@@ -90,6 +93,18 @@ export default function DashboardPage() {
             <span className="separator">|</span>
             <span>{balance.currency}</span>
           </div>
+          {balance.source && (
+            <div className="balance-meta">
+              <span className={`badge ${balance.source === 'REDIS' ? 'badge-info' : 'badge-success'}`}>
+                {balance.source}
+              </span>
+              {balance.lastSyncedAt && (
+                <span style={{ fontSize: '0.75rem', opacity: 0.7, marginLeft: '0.5rem' }}>
+                  synced {formatDateTime(balance.lastSyncedAt)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
 

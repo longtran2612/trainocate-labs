@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import vn.trainocate.moneytransfer.account.dto.request.CreateAccountRequest;
 import vn.trainocate.moneytransfer.account.dto.request.CreditRequest;
 import vn.trainocate.moneytransfer.account.dto.request.DebitRequest;
@@ -12,17 +14,21 @@ import vn.trainocate.moneytransfer.account.dto.response.CustomerInfoResponse;
 import vn.trainocate.moneytransfer.account.dto.response.DebitCreditResponse;
 import vn.trainocate.moneytransfer.account.entity.AccountEntity;
 import vn.trainocate.moneytransfer.account.exception.BusinessException;
+import vn.trainocate.moneytransfer.account.readmodel.AccountReadModel;
+import vn.trainocate.moneytransfer.account.readmodel.AccountRedisRepository;
 import vn.trainocate.moneytransfer.account.repository.AccountRepository;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * CQRS Command Side — handles all write operations against PostgreSQL.
+ * CQRS Command Side — all writes go to PostgreSQL inside a transaction.
  *
- * <p>After each write, PostgreSQL WAL emits a change event which Debezium
- * captures and publishes to Kafka. The {@link vn.trainocate.moneytransfer.account.event.AccountEventConsumer}
- * then updates the Redis read model asynchronously (eventual consistency).
+ * Write-through strategy: after each debit/credit commits, Redis is updated
+ * immediately via afterCommit() so the query side sees the correct balance
+ * without waiting for the Debezium CDC pipeline (which can be 1-5s behind).
+ * The CDC event arriving later is handled idempotently by the consumer.
  */
 @Slf4j
 @Service
@@ -30,6 +36,7 @@ import java.util.UUID;
 public class AccountCommandService {
 
     private final AccountRepository accountRepository;
+    private final AccountRedisRepository accountRedisRepository;
 
     @Transactional
     public CustomerInfoResponse createAccount(CreateAccountRequest request) {
@@ -60,8 +67,7 @@ public class AccountCommandService {
                 .build();
 
         accountRepository.save(account);
-        log.info("[COMMAND] Account created: accountNo={}, cif={} → Debezium CDC will sync to Redis",
-                accountNo, request.getCif());
+        log.info("[COMMAND] Account created: accountNo={}, cif={}", accountNo, request.getCif());
 
         return toCustomerInfoResponse(account);
     }
@@ -87,15 +93,14 @@ public class AccountCommandService {
         }
 
         accountRepository.save(account);
-        log.info("[COMMAND] Account updated: accountNo={} → Debezium CDC will sync to Redis",
-                request.getAccountNo());
+        log.info("[COMMAND] Account updated: accountNo={}", request.getAccountNo());
 
         return toCustomerInfoResponse(account);
     }
 
     @Transactional
     public DebitCreditResponse debit(DebitRequest request) {
-        AccountEntity account = accountRepository.findByAccountNo(request.getAccountNo())
+        AccountEntity account = accountRepository.findByAccountNoForUpdate(request.getAccountNo())
                 .orElseThrow(() -> new BusinessException("ACCOUNT_NOT_FOUND",
                         "Account not found: " + request.getAccountNo()));
 
@@ -108,8 +113,12 @@ public class AccountCommandService {
         account.setAvailableBalance(account.getAvailableBalance().subtract(request.getAmount()));
         accountRepository.save(account);
 
-        log.info("[COMMAND] Debit executed: accountNo={}, amount={}, newBalance={} → CDC → Redis",
+        log.info("[COMMAND] Debit: accountNo={}, amount={}, newBalance={}",
                 request.getAccountNo(), request.getAmount(), account.getBalance());
+
+        // Write-through: push correct balance to Redis immediately after commit.
+        // CDC will arrive later but consumer idempotency check skips same-version events.
+        scheduleRedisUpdate(account);
 
         return DebitCreditResponse.builder()
                 .txRef(UUID.randomUUID().toString())
@@ -128,8 +137,10 @@ public class AccountCommandService {
         account.setAvailableBalance(account.getAvailableBalance().add(request.getAmount()));
         accountRepository.save(account);
 
-        log.info("[COMMAND] Credit executed: accountNo={}, amount={}, newBalance={} → CDC → Redis",
+        log.info("[COMMAND] Credit: accountNo={}, amount={}, newBalance={}",
                 request.getAccountNo(), request.getAmount(), account.getBalance());
+
+        scheduleRedisUpdate(account);
 
         return DebitCreditResponse.builder()
                 .txRef(UUID.randomUUID().toString())
@@ -139,6 +150,43 @@ public class AccountCommandService {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Registers a post-commit hook to update Redis after the DB transaction is
+     * durably committed. This ensures the read model is immediately fresh and
+     * eliminates the 1-5s CDC lag on the query side.
+     */
+    private void scheduleRedisUpdate(AccountEntity account) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    accountRedisRepository.save(AccountReadModel.builder()
+                            .accountNo(account.getAccountNo())
+                            .userId(account.getUserId() != null ? account.getUserId().toString() : null)
+                            .cif(account.getCif())
+                            .fullName(account.getFullName())
+                            .address(account.getAddress())
+                            .mobile(account.getMobile())
+                            .email(account.getEmail())
+                            .balance(account.getBalance())
+                            .availableBalance(account.getAvailableBalance())
+                            .holdBalance(account.getHoldBalance())
+                            .currency(account.getCurrency())
+                            .status(account.getStatus())
+                            .version(account.getVersion())
+                            .lastSyncedAt(Instant.now())
+                            .source("DIRECT")
+                            .build());
+                    log.debug("[COMMAND] Redis updated post-commit: accountNo={}, balance={}",
+                            account.getAccountNo(), account.getBalance());
+                } catch (Exception e) {
+                    log.warn("[COMMAND] Post-commit Redis update failed for accountNo={} — CDC will catch up",
+                            account.getAccountNo(), e);
+                }
+            }
+        });
+    }
 
     private String generateAccountNo() {
         return accountRepository.findTopByOrderByAccountNoDesc()

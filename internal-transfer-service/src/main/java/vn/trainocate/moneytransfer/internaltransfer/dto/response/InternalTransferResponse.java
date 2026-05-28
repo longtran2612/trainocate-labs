@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -17,4 +18,7 @@ public class InternalTransferResponse {
     private String status;
     private String receiverName;
     private LocalDateTime completedAt;
+
+    /** Sender's updated balance from PostgreSQL — reflects the debit immediately. */
+    private BigDecimal senderNewBalance;
 }

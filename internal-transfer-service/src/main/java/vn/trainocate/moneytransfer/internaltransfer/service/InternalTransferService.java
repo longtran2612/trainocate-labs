@@ -52,7 +52,7 @@ public class InternalTransferService {
                 request.getReferenceId(), request.getSenderAccountNo(),
                 request.getReceiverAccountNo(), request.getAmount());
 
-        // Step 1: Get sender customer info (resolve accountNo -> userId for KYC)
+        // Step 1: Get sender customer info
         Map<String, Object> customerInfo = extractData(
                 accountClient.getCustomerInfo(Map.of("accountNo", request.getSenderAccountNo())));
         String userId = String.valueOf(customerInfo.get("userId"));
@@ -80,16 +80,7 @@ public class InternalTransferService {
         }
         log.info("Limit check passed for accountNo={}", request.getSenderAccountNo());
 
-        // Step 4: Check balance
-        Map<String, Object> balanceResponse = extractData(
-                accountClient.checkBalance(Map.of("accountNo", request.getSenderAccountNo())));
-        BigDecimal availableBalance = new BigDecimal(String.valueOf(balanceResponse.get("availableBalance")));
-        if (availableBalance.compareTo(request.getAmount()) < 0) {
-            throw new BusinessException("INSUFFICIENT_BALANCE", "Available balance is insufficient for this transfer");
-        }
-        log.info("Balance check passed: available={}, requested={}", availableBalance, request.getAmount());
-
-        // Step 5: Inquiry receiver account
+        // Step 4: Inquiry receiver account
         InternalInquiryRequest inquiryRequest = InternalInquiryRequest.builder()
                 .accountNo(request.getReceiverAccountNo())
                 .currency(request.getCurrency())
@@ -97,14 +88,20 @@ public class InternalTransferService {
         InternalInquiryResponse receiverInfo = inquiry(inquiryRequest);
         log.info("Receiver account found: accountNo={}, name={}", receiverInfo.getAccountNo(), receiverInfo.getFullName());
 
-        // Step 6: Debit sender
-        extractData(accountClient.debit(Map.of(
+        // Step 5: Debit sender.
+        // account-service validates balance against PostgreSQL with a pessimistic lock —
+        // no need for a separate checkBalance call against the Redis read model.
+        Map<String, Object> debitResult = extractData(accountClient.debit(Map.of(
                 "accountNo", request.getSenderAccountNo(),
                 "amount", request.getAmount(),
                 "referenceId", request.getReferenceId())));
         log.info("Debit successful for accountNo={}", request.getSenderAccountNo());
 
-        // Step 7: Consume limit
+        BigDecimal senderNewBalance = debitResult.containsKey("newBalance")
+                ? new BigDecimal(String.valueOf(debitResult.get("newBalance")))
+                : null;
+
+        // Step 6: Consume limit
         extractData(limitClient.limitConsume(Map.of(
                 "accountNo", request.getSenderAccountNo(),
                 "amount", request.getAmount(),
@@ -112,7 +109,7 @@ public class InternalTransferService {
                 "referenceId", request.getReferenceId())));
         log.info("Limit consumed for accountNo={}", request.getSenderAccountNo());
 
-        // Step 8: Credit receiver
+        // Step 7: Credit receiver
         Map<String, Object> creditRequest = new HashMap<>();
         creditRequest.put("accountNo", receiverInfo.getAccountNo());
         creditRequest.put("amount", request.getAmount());
@@ -128,6 +125,7 @@ public class InternalTransferService {
                 .status("COMPLETED")
                 .receiverName(receiverInfo.getFullName())
                 .completedAt(LocalDateTime.now())
+                .senderNewBalance(senderNewBalance)
                 .build();
     }
 

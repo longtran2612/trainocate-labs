@@ -56,4 +56,12 @@ public class DebeziumAccountPayload {
 
     @JsonProperty("status")
     private String status;
+
+    /** Optimistic-lock version from accounts.version — used for idempotency in consumer. */
+    @JsonProperty("version")
+    private Long version;
+
+    /** epoch-millis from accounts.updated_at (time.precision.mode=connect). */
+    @JsonProperty("updated_at")
+    private Long updatedAt;
 }

@@ -10,14 +10,18 @@ import vn.trainocate.moneytransfer.account.readmodel.AccountReadModel;
 import vn.trainocate.moneytransfer.account.readmodel.AccountRedisRepository;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.Optional;
 
 /**
- * Debezium CDC consumer — bridges the PostgreSQL write store to the Redis read model.
+ * Debezium CDC consumer — bridges PostgreSQL WAL to the Redis read model.
  *
- * <p>Flow: PostgreSQL WAL → Debezium → Kafka topic {@code account_db.public.accounts}
- * → this consumer → Redis {@code account:{accountNo}}.
+ * Flow: PostgreSQL WAL → Debezium → Kafka topic account_db.public.accounts
+ *       → this consumer → Redis account:{accountNo}
  *
- * <p>Manual acknowledgment: always ack in finally block to prevent infinite redelivery.
+ * Ack policy: only ack AFTER successful Redis update.
+ * On failure: throw so Spring Kafka retries via the configured DefaultErrorHandler.
+ * Idempotency: skip events whose version <= current Redis version to handle at-least-once.
  */
 @Slf4j
 @Component
@@ -32,18 +36,32 @@ public class AccountEventConsumer {
     @KafkaListener(topics = TOPIC, groupId = "account-service-cqrs",
                    containerFactory = "kafkaListenerContainerFactory")
     public void consume(String message, Acknowledgment ack) {
-        try {
-            // Tombstone (DELETE event with ExtractNewRecordState SMT)
-            if (message == null || "null".equalsIgnoreCase(message.trim())) {
-                log.debug("Received tombstone on topic {}, skipping", TOPIC);
-                return;
-            }
+        // Tombstone (DELETE event with ExtractNewRecordState SMT)
+        if (message == null || "null".equalsIgnoreCase(message.trim())) {
+            log.debug("Received tombstone on topic {}, skipping", TOPIC);
+            ack.acknowledge();
+            return;
+        }
 
+        try {
             DebeziumAccountPayload payload = objectMapper.readValue(message, DebeziumAccountPayload.class);
 
             if (payload.getAccountNo() == null) {
                 log.warn("CDC event missing account_no, skipping: {}", message);
+                ack.acknowledge();
                 return;
+            }
+
+            // Idempotency: skip if incoming version is not newer than what Redis already has
+            if (payload.getVersion() != null) {
+                Optional<AccountReadModel> current = accountRedisRepository.findByAccountNo(payload.getAccountNo());
+                if (current.isPresent() && current.get().getVersion() != null
+                        && payload.getVersion() <= current.get().getVersion()) {
+                    log.info("Skip old/duplicate CDC event: accountNo={}, eventVersion={}, redisVersion={}",
+                            payload.getAccountNo(), payload.getVersion(), current.get().getVersion());
+                    ack.acknowledge();
+                    return;
+                }
             }
 
             AccountReadModel readModel = AccountReadModel.builder()
@@ -59,17 +77,24 @@ public class AccountEventConsumer {
                     .holdBalance(parseBigDecimal(payload.getHoldBalance()))
                     .currency(payload.getCurrency())
                     .status(payload.getStatus())
+                    .version(payload.getVersion())
+                    .lastDbUpdatedAt(payload.getUpdatedAt() != null
+                            ? Instant.ofEpochMilli(payload.getUpdatedAt()) : null)
+                    .lastSyncedAt(Instant.now())
+                    .source("CDC")
                     .build();
 
+            // Only ack AFTER successful Redis write — if this throws, Spring Kafka retries
             accountRedisRepository.save(readModel);
-            log.info("Read model synced via Debezium CDC: accountNo={}, balance={}",
-                    readModel.getAccountNo(), readModel.getBalance());
+            ack.acknowledge();
+
+            log.info("Read model synced via CDC: accountNo={}, balance={}, version={}",
+                    readModel.getAccountNo(), readModel.getBalance(), readModel.getVersion());
 
         } catch (Exception e) {
-            log.error("Failed to process CDC event, read model NOT updated. Message: {}", message, e);
-            // Do NOT re-throw — always ack to avoid redelivery loop
-        } finally {
-            ack.acknowledge();
+            log.error("Failed to process CDC event — will retry. Message: {}", message, e);
+            // Re-throw so DefaultErrorHandler retries, then routes to DLT after exhaustion
+            throw new RuntimeException("CDC processing failed", e);
         }
     }
 

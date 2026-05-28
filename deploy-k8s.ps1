@@ -76,6 +76,9 @@ kubectl wait --for=condition=ready pod -l app=redis -n money-transfer --timeout=
 Write-Host "  Waiting for Kafka..." -ForegroundColor Gray
 kubectl wait --for=condition=ready pod -l app=kafka -n money-transfer --timeout=120s
 
+Write-Host "  Waiting for Kafka Connect (Debezium)..." -ForegroundColor Gray
+kubectl wait --for=condition=ready pod -l app=kafka-connect -n money-transfer --timeout=180s
+
 foreach ($svc in $services) {
     Write-Host "  Waiting for $($svc.name)..." -ForegroundColor Gray
     kubectl wait --for=condition=ready pod -l app=$($svc.name) -n money-transfer --timeout=180s

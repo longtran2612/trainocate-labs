@@ -15,15 +15,18 @@ import vn.trainocate.moneytransfer.account.readmodel.AccountReadModel;
 import vn.trainocate.moneytransfer.account.readmodel.AccountRedisRepository;
 import vn.trainocate.moneytransfer.account.repository.AccountRepository;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 /**
- * CQRS Query Side — reads from the Redis read model (fast path).
+ * CQRS Query Side — reads from Redis read model when fresh; falls back to PostgreSQL
+ * when Redis is stale (CDC pipeline down) or absent.
  *
- * <p>On cache miss (Redis cold start or eviction), falls back to PostgreSQL
- * and warms the Redis cache automatically.
- *
- * <p>Lookups by mobile / CIF always use PostgreSQL (no secondary Redis index needed).
+ * Balance correctness policy:
+ *   - checkBalance: Redis only if fresh (within staleness threshold); else PostgreSQL.
+ *   - On PostgreSQL read: warm Redis so next call can hit cache.
+ *   - Response always includes source + lastSyncedAt so callers know data provenance.
  */
 @Slf4j
 @Service
@@ -32,6 +35,7 @@ public class AccountQueryService {
 
     private final AccountRepository accountRepository;
     private final AccountRedisRepository accountRedisRepository;
+    private final ReadModelFreshnessService freshnessService;
 
     public CustomerInfoResponse getCustomerInfo(CustomerInfoRequest request) {
         return accountRedisRepository.findByAccountNo(request.getAccountNo())
@@ -43,38 +47,42 @@ public class AccountQueryService {
                     log.info("[QUERY] Cache MISS for accountNo={}, falling back to PostgreSQL",
                             request.getAccountNo());
                     AccountEntity entity = requireAccount(request.getAccountNo());
-                    accountRedisRepository.save(toReadModel(entity));   // warm cache
+                    warmCache(entity);
                     return toCustomerInfoFromEntity(entity);
                 });
     }
 
+    /**
+     * Safe balance read with freshness guarantee.
+     *
+     * Returns Redis balance only when the read model was synced recently.
+     * Falls back to PostgreSQL (source of truth) when Kafka/Debezium/consumer is down.
+     */
     public BalanceResponse checkBalance(CheckBalanceRequest request) {
-        return accountRedisRepository.findByAccountNo(request.getAccountNo())
-                .map(m -> {
-                    log.debug("[QUERY] Balance cache HIT for accountNo={}", request.getAccountNo());
-                    return BalanceResponse.builder()
-                            .balance(m.getBalance())
-                            .availableBalance(m.getAvailableBalance())
-                            .holdBalance(m.getHoldBalance())
-                            .currency(m.getCurrency())
-                            .build();
-                })
-                .orElseGet(() -> {
-                    log.info("[QUERY] Balance cache MISS for accountNo={}, falling back to PostgreSQL",
-                            request.getAccountNo());
-                    AccountEntity entity = requireAccount(request.getAccountNo());
-                    accountRedisRepository.save(toReadModel(entity));
-                    return BalanceResponse.builder()
-                            .balance(entity.getBalance())
-                            .availableBalance(entity.getAvailableBalance())
-                            .holdBalance(entity.getHoldBalance())
-                            .currency(entity.getCurrency())
-                            .build();
-                });
+        Optional<AccountReadModel> cached = accountRedisRepository.findByAccountNo(request.getAccountNo());
+
+        if (cached.isPresent() && freshnessService.isFresh(cached.get())) {
+            log.debug("[QUERY] Balance HIT (fresh) for accountNo={}", request.getAccountNo());
+            return BalanceResponse.fromRedis(cached.get());
+        }
+
+        String reason = cached.isPresent() ? "READ_MODEL_STALE" : "READ_MODEL_MISS";
+        log.info("[QUERY] Balance fallback to PostgreSQL: accountNo={}, reason={}",
+                request.getAccountNo(), reason);
+
+        AccountEntity entity = requireAccount(request.getAccountNo());
+
+        // Warm Redis but never let a Redis failure block the response
+        try {
+            accountRedisRepository.save(toReadModel(entity));
+        } catch (Exception e) {
+            log.warn("Redis warm-up failed after PostgreSQL fallback, accountNo={}", request.getAccountNo(), e);
+        }
+
+        return BalanceResponse.fromPostgres(entity, reason);
     }
 
     public InquiryResponse inquiry(InquiryRequest request) {
-        // Primary lookup by accountNo → try Redis first
         if (request.getAccountNo() != null) {
             return accountRedisRepository.findByAccountNo(request.getAccountNo())
                     .map(m -> InquiryResponse.builder()
@@ -84,12 +92,11 @@ public class AccountQueryService {
                             .build())
                     .orElseGet(() -> {
                         AccountEntity entity = requireAccount(request.getAccountNo());
-                        accountRedisRepository.save(toReadModel(entity));
+                        warmCache(entity);
                         return toInquiry(entity);
                     });
         }
 
-        // Secondary lookups (mobile / CIF) — always PostgreSQL
         AccountEntity account = null;
         if (request.getMobile() != null) {
             account = accountRepository.findByMobile(request.getMobile()).orElse(null);
@@ -105,7 +112,6 @@ public class AccountQueryService {
     }
 
     public List<CustomerInfoResponse> getAllAccounts() {
-        // Full-scan always from PostgreSQL (no Redis for list queries)
         return accountRepository.findAll().stream()
                 .map(this::toCustomerInfoFromEntity)
                 .toList();
@@ -117,6 +123,14 @@ public class AccountQueryService {
         return accountRepository.findByAccountNo(accountNo)
                 .orElseThrow(() -> new BusinessException("ACCOUNT_NOT_FOUND",
                         "Account not found with accountNo: " + accountNo));
+    }
+
+    private void warmCache(AccountEntity entity) {
+        try {
+            accountRedisRepository.save(toReadModel(entity));
+        } catch (Exception e) {
+            log.warn("Redis warm-up failed for accountNo={}", entity.getAccountNo(), e);
+        }
     }
 
     private CustomerInfoResponse mapToCustomerInfo(AccountReadModel m) {
@@ -177,6 +191,11 @@ public class AccountQueryService {
                 .holdBalance(e.getHoldBalance())
                 .currency(e.getCurrency())
                 .status(e.getStatus())
+                .version(e.getVersion())
+                .lastDbUpdatedAt(e.getUpdatedAt() != null ? e.getUpdatedAt().toInstant(
+                        java.time.ZoneOffset.of("+07:00")) : null)
+                .lastSyncedAt(Instant.now())
+                .source("DIRECT")
                 .build();
     }
 }
