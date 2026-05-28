@@ -102,6 +102,7 @@ services:
   eureka-server:
     build:
       context: .
+      dockerfile: Dockerfile-demo
       args:
         SERVICE_NAME: eureka-server
         SERVICE_PORT: 8761
@@ -122,6 +123,7 @@ services:
   auth-service:
     build:
       context: .
+      dockerfile: Dockerfile-demo
       args:
         SERVICE_NAME: auth-service
         SERVICE_PORT: 8081
@@ -145,6 +147,7 @@ services:
   account-service:
     build:
       context: .
+      dockerfile: Dockerfile-demo
       args:
         SERVICE_NAME: account-service
         SERVICE_PORT: 8082
@@ -174,6 +177,7 @@ services:
   kyc-service:
     build:
       context: .
+      dockerfile: Dockerfile-demo
       args:
         SERVICE_NAME: kyc-service
         SERVICE_PORT: 8083
@@ -200,6 +204,7 @@ services:
   limit-service:
     build:
       context: .
+      dockerfile: Dockerfile-demo
       args:
         SERVICE_NAME: limit-service
         SERVICE_PORT: 8084
@@ -226,6 +231,7 @@ services:
   transaction-service:
     build:
       context: .
+      dockerfile: Dockerfile-demo
       args:
         SERVICE_NAME: transaction-service
         SERVICE_PORT: 8085
@@ -254,6 +260,7 @@ services:
   api-gateway:
     build:
       context: .
+      dockerfile: Dockerfile-demo
       args:
         SERVICE_NAME: api-gateway
         SERVICE_PORT: 8080

@@ -1,8 +1,11 @@
+# Global build args — must be declared before the first FROM
+# so they can be used inside FROM instructions across all stages
+ARG JRE_VERSION=25
+
 # Stage 1 — OpenTelemetry Java Agent
 FROM ghcr.io/open-telemetry/opentelemetry-java-instrumentation/opentelemetry-javaagent:2.14.0 AS otel-agent
 
 # Stage 2 — Runtime
-ARG JRE_VERSION=25
 FROM eclipse-temurin:${JRE_VERSION}-jre-alpine
 
 # Copy OTel agent from stage 1
