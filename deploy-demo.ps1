@@ -1,6 +1,6 @@
 # ============================================================
 # Money Transfer Platform - SAGA DEMO Deployment Script
-# Stack tối giản để demo chuyển khoản event-driven saga
+# Minimal stack to demo event-driven transfer saga
 # ============================================================
 
 $ErrorActionPreference = "Stop"
@@ -11,7 +11,7 @@ Write-Host " Money Transfer - Saga Demo Deployment" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 
 # ----------------------------------------------------------
-# Step 1: Build Gradle (chỉ các module cần cho demo)
+# Step 1: Build Gradle (only modules needed for demo)
 # ----------------------------------------------------------
 Write-Host "`n[1/4] Building Gradle modules..." -ForegroundColor Yellow
 .\gradlew.bat clean bootJar -x test `
@@ -28,13 +28,13 @@ Write-Host "Gradle build completed." -ForegroundColor Green
 Write-Host "`n[2/4] Building Docker images..." -ForegroundColor Yellow
 
 $demoServices = @(
-    @{ name = "eureka-server";      port = 8761 },
-    @{ name = "auth-service";       port = 8081 },
-    @{ name = "account-service";    port = 8082 },
-    @{ name = "kyc-service";        port = 8083 },
-    @{ name = "limit-service";      port = 8084 },
+    @{ name = "eureka-server";       port = 8761 },
+    @{ name = "auth-service";        port = 8081 },
+    @{ name = "account-service";     port = 8082 },
+    @{ name = "kyc-service";         port = 8083 },
+    @{ name = "limit-service";       port = 8084 },
     @{ name = "transaction-service"; port = 8085 },
-    @{ name = "api-gateway";        port = 8080 }
+    @{ name = "api-gateway";         port = 8080 }
 )
 
 foreach ($svc in $demoServices) {
@@ -60,28 +60,26 @@ Write-Host "Containers started." -ForegroundColor Green
 # ----------------------------------------------------------
 # Step 4: Summary
 # ----------------------------------------------------------
-Write-Host "`n[4/4] Waiting for services to come online..." -ForegroundColor Yellow
-Write-Host "      (Keycloak khởi động ~60s, Java services ~30-60s)" -ForegroundColor Gray
-Write-Host ""
-Write-Host "Theo dõi log: docker compose -f docker-compose-demo.yml logs -f" -ForegroundColor Gray
+Write-Host "`n[4/4] Stack is starting up..." -ForegroundColor Yellow
+Write-Host "      Keycloak ~60s, Java services ~30-60s after Keycloak" -ForegroundColor Gray
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host " Demo Stack Ready!" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "── URLs ────────────────────────────────────" -ForegroundColor Cyan
-Write-Host "Frontend (Web):  http://localhost:3000" -ForegroundColor White
+Write-Host "-- URLs -------------------------------------" -ForegroundColor Cyan
+Write-Host "Frontend:        http://localhost:3000" -ForegroundColor White
 Write-Host "Keycloak Admin:  http://localhost:9090  (admin/admin)" -ForegroundColor White
 Write-Host ""
-Write-Host "── Demo Accounts ───────────────────────────" -ForegroundColor Cyan
+Write-Host "-- Demo Accounts ----------------------------" -ForegroundColor Cyan
 Write-Host "Sender:    1000000001  /  password: 123456" -ForegroundColor White
 Write-Host "Receiver:  1000000002  /  password: 123456" -ForegroundColor White
 Write-Host ""
-Write-Host "── Saga Rollback Test ──────────────────────" -ForegroundColor Cyan
-Write-Host "Đặt receiver account = FORCE_FAIL" -ForegroundColor White
-Write-Host "→ Saga thực hiện compensation: hoàn tiền sender" -ForegroundColor White
+Write-Host "-- Saga Rollback Test -----------------------" -ForegroundColor Cyan
+Write-Host "Set receiver account = FORCE_FAIL" -ForegroundColor White
+Write-Host "  => Saga runs compensation: sender gets refunded" -ForegroundColor White
 Write-Host ""
-Write-Host "── Quản lý ─────────────────────────────────" -ForegroundColor Gray
-Write-Host "  Xem logs:   docker compose -f docker-compose-demo.yml logs -f [service]" -ForegroundColor Gray
-Write-Host "  Dừng:       docker compose -f docker-compose-demo.yml down" -ForegroundColor Gray
-Write-Host "  Xóa data:   docker compose -f docker-compose-demo.yml down -v" -ForegroundColor Gray
+Write-Host "-- Management -------------------------------" -ForegroundColor Gray
+Write-Host "  Logs:      docker compose -f docker-compose-demo.yml logs -f" -ForegroundColor Gray
+Write-Host "  Stop:      docker compose -f docker-compose-demo.yml down" -ForegroundColor Gray
+Write-Host "  Reset data: docker compose -f docker-compose-demo.yml down -v" -ForegroundColor Gray
