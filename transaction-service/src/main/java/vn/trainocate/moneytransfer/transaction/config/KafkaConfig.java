@@ -1,4 +1,4 @@
-package vn.trainocate.moneytransfer.account.config;
+package vn.trainocate.moneytransfer.transaction.config;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
@@ -15,7 +15,7 @@ import java.util.Map;
 
 @EnableKafka
 @Configuration
-public class KafkaConsumerConfig {
+public class KafkaConfig {
 
     @Bean
     public ConsumerFactory<String, String> consumerFactory(KafkaProperties kafkaProperties) {
@@ -30,19 +30,6 @@ public class KafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
-        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
-        return factory;
-    }
-
-    @Bean("sagaKafkaListenerContainerFactory")
-    public ConcurrentKafkaListenerContainerFactory<String, String> sagaKafkaListenerContainerFactory(
-            KafkaProperties kafkaProperties) {
-        Map<String, Object> props = new HashMap<>(kafkaProperties.buildConsumerProperties(null));
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "account-service-saga");
-        ConcurrentKafkaListenerContainerFactory<String, String> factory =
-                new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(new DefaultKafkaConsumerFactory<>(props));
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
         return factory;
     }

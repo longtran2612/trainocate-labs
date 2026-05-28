@@ -26,7 +26,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
-@Service
+@Deprecated(since = "Replaced by SagaKafkaOrchestrator — kept as reference for synchronous saga pattern")
+@Service("sagaSyncOrchestrator")
 @RequiredArgsConstructor
 public class SagaOrchestrator {
 
@@ -37,17 +38,9 @@ public class SagaOrchestrator {
     private final SagaStepRepository sagaStepRepository;
     private final ObjectMapper objectMapper;
 
-    /**
-     * Execute the Internal Transfer Saga.
-     * Steps 1-3 are read-only (no compensation).
-     * Steps 4-5 are compensable (debit + limit consume).
-     * Step 6 is the terminal success step.
-     *
-     * On any failure from step 4 onward, compensating transactions run in reverse.
-     */
     @Transactional
     public Map<String, Object> executeInternalTransferSaga(TransactionResponse tx, TransferRequest request) {
-        log.info("[SAGA] Starting INTERNAL_TRANSFER saga: txId={}, referenceId={}", tx.getTxId(), request.getReferenceId());
+        log.info("[SAGA-SYNC] Starting INTERNAL_TRANSFER saga: txId={}, referenceId={}", tx.getTxId(), request.getReferenceId());
 
         SagaStateEntity saga = sagaStateRepository.save(
                 SagaStateEntity.builder()
@@ -56,11 +49,9 @@ public class SagaOrchestrator {
                         .status(SagaStatus.RUNNING)
                         .build());
 
-        // Track compensable steps in a stack for easy reverse execution
         Deque<SagaStepName> compensationStack = new ArrayDeque<>();
 
         try {
-            // ── Step 1: KYC Check ──────────────────────────────────────────
             Map<String, Object> kycData = executeStep(saga, SagaStepName.KYC_CHECK, () -> {
                 Map<String, Object> resp = extractData(
                         kycClient.getKycStatus(Map.of("accountNo", request.getSenderAccountNo())));
@@ -70,9 +61,8 @@ public class SagaOrchestrator {
                 }
                 return resp;
             });
-            log.info("[SAGA] Step KYC_CHECK passed: txId={}", tx.getTxId());
+            log.info("[SAGA-SYNC] Step KYC_CHECK passed: txId={}", tx.getTxId());
 
-            // ── Step 2: Limit Check ────────────────────────────────────────
             executeStep(saga, SagaStepName.LIMIT_CHECK, () -> {
                 Map<String, Object> resp = extractData(
                         limitClient.limitCheck(Map.of(
@@ -86,9 +76,8 @@ public class SagaOrchestrator {
                 }
                 return resp;
             });
-            log.info("[SAGA] Step LIMIT_CHECK passed: txId={}", tx.getTxId());
+            log.info("[SAGA-SYNC] Step LIMIT_CHECK passed: txId={}", tx.getTxId());
 
-            // ── Step 3: Balance Check ──────────────────────────────────────
             executeStep(saga, SagaStepName.BALANCE_CHECK, () -> {
                 Map<String, Object> resp = extractData(
                         accountClient.checkBalance(Map.of("accountNo", request.getSenderAccountNo())));
@@ -98,20 +87,17 @@ public class SagaOrchestrator {
                 }
                 return resp;
             });
-            log.info("[SAGA] Step BALANCE_CHECK passed: txId={}", tx.getTxId());
+            log.info("[SAGA-SYNC] Step BALANCE_CHECK passed: txId={}", tx.getTxId());
 
-            // ── Step 4: Debit Sender ───────────────────────────────────────
             executeStep(saga, SagaStepName.DEBIT_SENDER, () ->
                     extractData(accountClient.debit(Map.of(
                             "accountNo", request.getSenderAccountNo(),
                             "amount", request.getAmount(),
                             "referenceId", request.getReferenceId(),
                             "description", "Transfer to " + request.getReceiverAccountNo()))));
-            compensationStack.push(SagaStepName.DEBIT_SENDER); // register for potential compensation
-            log.info("[SAGA] Step DEBIT_SENDER completed: txId={}, sender={}, amount={}",
-                    tx.getTxId(), request.getSenderAccountNo(), request.getAmount());
+            compensationStack.push(SagaStepName.DEBIT_SENDER);
+            log.info("[SAGA-SYNC] Step DEBIT_SENDER completed: txId={}", tx.getTxId());
 
-            // ── Step 5: Consume Limit ──────────────────────────────────────
             executeStep(saga, SagaStepName.CONSUME_LIMIT, () ->
                     extractData(limitClient.limitConsume(Map.of(
                             "accountNo", request.getSenderAccountNo(),
@@ -119,9 +105,8 @@ public class SagaOrchestrator {
                             "transferType", "INTERNAL",
                             "txId", tx.getTxId().toString()))));
             compensationStack.push(SagaStepName.CONSUME_LIMIT);
-            log.info("[SAGA] Step CONSUME_LIMIT completed: txId={}", tx.getTxId());
+            log.info("[SAGA-SYNC] Step CONSUME_LIMIT completed: txId={}", tx.getTxId());
 
-            // ── Step 6: Credit Receiver (terminal) ────────────────────────
             Map<String, Object> creditData = executeStep(saga, SagaStepName.CREDIT_RECEIVER, () -> {
                 Map<String, Object> creditReq = new HashMap<>();
                 creditReq.put("accountNo", request.getReceiverAccountNo());
@@ -131,13 +116,11 @@ public class SagaOrchestrator {
                         ? request.getDescription() : "Transfer from " + request.getSenderAccountNo());
                 return extractData(accountClient.credit(creditReq));
             });
-            log.info("[SAGA] Step CREDIT_RECEIVER completed: txId={}, receiver={}",
-                    tx.getTxId(), request.getReceiverAccountNo());
+            log.info("[SAGA-SYNC] Step CREDIT_RECEIVER completed: txId={}", tx.getTxId());
 
-            // ── Saga completed ─────────────────────────────────────────────
             saga.setStatus(SagaStatus.COMPLETED);
             sagaStateRepository.save(saga);
-            log.info("[SAGA] INTERNAL_TRANSFER saga COMPLETED: txId={}", tx.getTxId());
+            log.info("[SAGA-SYNC] INTERNAL_TRANSFER saga COMPLETED: txId={}", tx.getTxId());
 
             Map<String, Object> result = new HashMap<>();
             result.put("referenceId", request.getReferenceId());
@@ -147,8 +130,7 @@ public class SagaOrchestrator {
             return result;
 
         } catch (Exception e) {
-            log.error("[SAGA] INTERNAL_TRANSFER saga FAILED at step, starting compensation: txId={}, error={}",
-                    tx.getTxId(), e.getMessage());
+            log.error("[SAGA-SYNC] INTERNAL_TRANSFER saga FAILED, starting compensation: txId={}", tx.getTxId(), e);
 
             String failedStep = compensationStack.isEmpty() ? "READ_STEP" : "COMPENSABLE_STEP";
             saga.setStatus(SagaStatus.COMPENSATING);
@@ -156,16 +138,12 @@ public class SagaOrchestrator {
             saga.setFailureReason(e.getMessage());
             sagaStateRepository.save(saga);
 
-            // Compensate in reverse order
             runCompensations(saga, compensationStack, request, tx.getTxId().toString());
 
-            // Re-throw original exception for the caller to handle
             if (e instanceof BusinessException) throw e;
             throw new BusinessException("SAGA_FAILED", "Transfer failed: " + e.getMessage());
         }
     }
-
-    // ── Compensation Logic ─────────────────────────────────────────────────────
 
     private void runCompensations(SagaStateEntity saga, Deque<SagaStepName> stack,
                                    TransferRequest request, String txId) {
@@ -176,45 +154,29 @@ public class SagaOrchestrator {
             try {
                 compensate(step, request, txId);
                 recordStep(saga, mapToCompensationStep(step), "COMPENSATED", null);
-                log.info("[SAGA] Compensation {} done: txId={}", step, txId);
             } catch (Exception ex) {
                 allCompensated = false;
                 recordStep(saga, mapToCompensationStep(step), "FAILED", ex.getMessage());
-                log.error("[SAGA] Compensation {} FAILED: txId={}, error={}", step, txId, ex.getMessage());
             }
         }
 
         saga.setStatus(allCompensated ? SagaStatus.COMPENSATED : SagaStatus.COMPENSATION_FAILED);
         sagaStateRepository.save(saga);
-
-        if (allCompensated) {
-            log.info("[SAGA] All compensations completed: txId={}", txId);
-        } else {
-            log.error("[SAGA] Some compensations FAILED — manual intervention required: txId={}", txId);
-        }
     }
 
     private void compensate(SagaStepName step, TransferRequest request, String txId) {
         switch (step) {
-            case DEBIT_SENDER -> {
-                // Refund: credit the sender back
-                accountClient.credit(Map.of(
-                        "accountNo", request.getSenderAccountNo(),
-                        "amount", request.getAmount(),
-                        "referenceId", "REFUND-" + request.getReferenceId(),
-                        "description", "Refund for failed transfer " + request.getReferenceId()));
-                log.info("[SAGA] Refunded sender {}: amount={}", request.getSenderAccountNo(), request.getAmount());
-            }
-            case CONSUME_LIMIT -> {
-                // Release limit
-                limitClient.limitRelease(Map.of(
-                        "accountNo", request.getSenderAccountNo(),
-                        "amount", request.getAmount(),
-                        "transferType", "INTERNAL",
-                        "txId", txId));
-                log.info("[SAGA] Limit released for {}: amount={}", request.getSenderAccountNo(), request.getAmount());
-            }
-            default -> log.warn("[SAGA] No compensation defined for step {}", step);
+            case DEBIT_SENDER -> accountClient.credit(Map.of(
+                    "accountNo", request.getSenderAccountNo(),
+                    "amount", request.getAmount(),
+                    "referenceId", "REFUND-" + request.getReferenceId(),
+                    "description", "Refund for failed transfer " + request.getReferenceId()));
+            case CONSUME_LIMIT -> limitClient.limitRelease(Map.of(
+                    "accountNo", request.getSenderAccountNo(),
+                    "amount", request.getAmount(),
+                    "transferType", "INTERNAL",
+                    "txId", txId));
+            default -> log.warn("[SAGA-SYNC] No compensation defined for step {}", step);
         }
     }
 
@@ -225,8 +187,6 @@ public class SagaOrchestrator {
             default -> step;
         };
     }
-
-    // ── Helper: execute a step, persist result ─────────────────────────────────
 
     @FunctionalInterface
     interface StepAction {

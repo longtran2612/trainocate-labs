@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import vn.trainocate.moneytransfer.transaction.client.ExternalTransferClient;
 import vn.trainocate.moneytransfer.transaction.client.InternalTransferClient;
-import vn.trainocate.moneytransfer.transaction.saga.SagaOrchestrator;
+import vn.trainocate.moneytransfer.transaction.saga.SagaKafkaOrchestrator;
 import vn.trainocate.moneytransfer.transaction.dto.ApiResponse;
 import vn.trainocate.moneytransfer.transaction.dto.request.CreateTransactionRequest;
 import vn.trainocate.moneytransfer.transaction.dto.request.InquiryRequest;
@@ -18,6 +18,10 @@ import vn.trainocate.moneytransfer.transaction.exception.BusinessException;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @Service
@@ -29,11 +33,14 @@ public class TransferOrchestrationService {
     private final InternalTransferClient internalTransferClient;
     private final ExternalTransferClient externalTransferClient;
     private final TransactionService transactionService;
-    private final SagaOrchestrator sagaOrchestrator;
+    private final SagaKafkaOrchestrator sagaKafkaOrchestrator;
     private final ObjectMapper objectMapper;
 
     @Value("${app.our-bank-code:" + VIKKIBANK_CODE + "}")
     private String ourBankCode;
+
+    @Value("${saga.timeout-seconds:30}")
+    private int sagaTimeoutSeconds;
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> inquiry(InquiryRequest request) {
@@ -69,7 +76,6 @@ public class TransferOrchestrationService {
         boolean internal = isOurBank(request.getBankCode());
         String txType = internal ? "INTERNAL_TRANSFER" : "EXTERNAL_TRANSFER";
 
-        // Step 1: Create transaction record
         TransactionResponse tx = transactionService.createTransaction(CreateTransactionRequest.builder()
                 .referenceId(request.getReferenceId())
                 .txType(txType)
@@ -81,19 +87,31 @@ public class TransferOrchestrationService {
                 .build());
         log.info("Transaction created: txId={}, type={}", tx.getTxId(), txType);
 
-        // Step 2: Delegate to internal or external transfer service
         try {
             Map<String, Object> transferResult;
 
             if (internal) {
-                // ── Saga Orchestration for Internal Transfer ──────────────
-                transferResult = sagaOrchestrator.executeInternalTransferSaga(tx, request);
+                CompletableFuture<Map<String, Object>> sagaFuture = sagaKafkaOrchestrator.startSaga(tx, request);
+
+                try {
+                    transferResult = sagaFuture.get(sagaTimeoutSeconds, TimeUnit.SECONDS);
+                } catch (TimeoutException e) {
+                    transactionService.updateStatus(UpdateTransactionStatusRequest.builder()
+                            .txId(tx.getTxId()).status("FAILED").build());
+                    throw new BusinessException("SAGA_TIMEOUT",
+                            "Transfer timed out after " + sagaTimeoutSeconds + " seconds");
+                } catch (ExecutionException e) {
+                    Throwable cause = e.getCause();
+                    if (cause instanceof BusinessException be) throw be;
+                    throw new BusinessException("SAGA_FAILED", "Transfer failed: " + cause.getMessage());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new BusinessException("SAGA_INTERRUPTED", "Transfer interrupted");
+                }
 
                 transactionService.updateStatus(UpdateTransactionStatusRequest.builder()
-                        .txId(tx.getTxId())
-                        .status("COMPLETED")
-                        .build());
-                log.info("Internal transfer saga completed: txId={}", tx.getTxId());
+                        .txId(tx.getTxId()).status("COMPLETED").build());
+                log.info("Internal transfer saga completed via Kafka: txId={}", tx.getTxId());
             } else {
                 Map<String, Object> externalRequest = new HashMap<>();
                 externalRequest.put("referenceId", request.getReferenceId());
@@ -109,31 +127,23 @@ public class TransferOrchestrationService {
 
                 transferResult = extractData(externalTransferClient.transfer(externalRequest));
 
-                // External transfer completed via NAPAS — mark COMPLETED
                 transactionService.updateStatus(UpdateTransactionStatusRequest.builder()
-                        .txId(tx.getTxId())
-                        .status("COMPLETED")
-                        .build());
+                        .txId(tx.getTxId()).status("COMPLETED").build());
                 log.info("External transfer completed: txId={}, napasRef={}", tx.getTxId(), transferResult.get("napasRef"));
             }
 
-            // Merge txId into the result
             transferResult.put("txId", tx.getTxId().toString());
             return transferResult;
 
         } catch (BusinessException e) {
-            log.error("Transfer failed, marking transaction as FAILED: txId={}, code={}", tx.getTxId(), e.getCode(), e);
+            log.error("Transfer failed: txId={}, code={}", tx.getTxId(), e.getCode(), e);
             transactionService.updateStatus(UpdateTransactionStatusRequest.builder()
-                    .txId(tx.getTxId())
-                    .status("FAILED")
-                    .build());
+                    .txId(tx.getTxId()).status("FAILED").build());
             throw e;
         } catch (Exception e) {
-            log.error("Transfer failed unexpectedly, marking transaction as FAILED: txId={}", tx.getTxId(), e);
+            log.error("Transfer failed unexpectedly: txId={}", tx.getTxId(), e);
             transactionService.updateStatus(UpdateTransactionStatusRequest.builder()
-                    .txId(tx.getTxId())
-                    .status("FAILED")
-                    .build());
+                    .txId(tx.getTxId()).status("FAILED").build());
             throw new BusinessException("TRANSFER_FAILED", "Transfer processing failed: " + e.getMessage());
         }
     }

@@ -28,6 +28,9 @@ spring:
       port: 6379
   kafka:
     bootstrap-servers: localhost:9094
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
     consumer:
       group-id: account-service-cqrs
       auto-offset-reset: earliest

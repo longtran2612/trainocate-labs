@@ -173,10 +173,13 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/kyc_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       EUREKA_INSTANCE_PREFERIPADDRESS: "true"
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
@@ -197,10 +200,13 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/limit_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       EUREKA_INSTANCE_PREFERIPADDRESS: "true"
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
@@ -221,10 +227,13 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/transaction_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
       EUREKA_INSTANCE_PREFERIPADDRESS: "true"
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
