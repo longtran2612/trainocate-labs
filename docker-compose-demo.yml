@@ -1,0 +1,292 @@
+# ============================================================
+# Money Transfer Platform - SAGA DEMO Stack
+# Minimal compose để demo chuyển khoản event-driven saga
+#
+# LOẠI BỎ: observability, onboarding, transfer services, debezium
+# GIỮ LẠI: auth + account + kyc + limit + transaction + eureka + gateway + frontend
+#
+# CHẠY:
+#   .\deploy-demo.ps1
+# HOẶC thủ công:
+#   .\gradlew.bat bootJar -x test
+#   docker compose -f docker-compose-demo.yml up --build -d
+#
+# DEMO ACCOUNTS (password: 123456):
+#   Sender:   1000000001 (Nguyen Van A)
+#   Receiver: 1000000002 (Tran Van B)
+#   Rollback: đặt receiver = FORCE_FAIL để trigger saga compensation
+# ============================================================
+
+services:
+
+  # ======================== INFRASTRUCTURE ========================
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: demo-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+    volumes:
+      - postgres-demo:/var/lib/postgresql/data
+      - ./docker/postgres/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [demo-net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: demo-redis
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [demo-net]
+
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: demo-kafka
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: "0"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 0@localhost:9093
+      KAFKA_LOG_DIRS: /tmp/kafka-logs
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_DEFAULT_REPLICATION_FACTOR: "1"
+      KAFKA_MIN_INSYNC_REPLICAS: "1"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks: [demo-net]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: start-dev --import-realm
+    container_name: demo-keycloak
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: "8080"
+    ports:
+      - "9090:8080"   # Keycloak Admin UI: http://localhost:9090
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+    networks: [demo-net]
+
+  # ======================== DISCOVERY ========================
+
+  eureka-server:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: eureka-server
+        SERVICE_PORT: 8761
+    container_name: demo-eureka
+    environment:
+      OTEL_JAVAAGENT_ENABLED: "false"
+      JAVA_OPTS: "-Xms32m -Xmx128m"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8761"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [demo-net]
+
+  # ======================== CORE SERVICES ========================
+
+  auth-service:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: auth-service
+        SERVICE_PORT: 8081
+    container_name: demo-auth
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123456
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      KEYCLOAK_SERVER_URL: http://keycloak:8080
+      OTEL_JAVAAGENT_ENABLED: "false"
+      JAVA_OPTS: "-Xms64m -Xmx192m"
+    depends_on:
+      postgres:      { condition: service_healthy }
+      eureka-server: { condition: service_healthy }
+      keycloak:      { condition: service_healthy }
+    restart: on-failure
+    networks: [demo-net]
+
+  account-service:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: account-service
+        SERVICE_PORT: 8082
+    container_name: demo-account
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/account_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      SPRING_PROFILES_ACTIVE: keycloak
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/money-transfer
+      OTEL_JAVAAGENT_ENABLED: "false"
+      JAVA_OPTS: "-Xms64m -Xmx256m"
+    depends_on:
+      postgres:      { condition: service_healthy }
+      redis:         { condition: service_healthy }
+      kafka:         { condition: service_healthy }
+      eureka-server: { condition: service_healthy }
+      keycloak:      { condition: service_healthy }
+    restart: on-failure
+    networks: [demo-net]
+
+  kyc-service:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: kyc-service
+        SERVICE_PORT: 8083
+    container_name: demo-kyc
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/kyc_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      SPRING_PROFILES_ACTIVE: keycloak
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/money-transfer
+      OTEL_JAVAAGENT_ENABLED: "false"
+      JAVA_OPTS: "-Xms64m -Xmx192m"
+    depends_on:
+      postgres:      { condition: service_healthy }
+      kafka:         { condition: service_healthy }
+      eureka-server: { condition: service_healthy }
+      keycloak:      { condition: service_healthy }
+    restart: on-failure
+    networks: [demo-net]
+
+  limit-service:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: limit-service
+        SERVICE_PORT: 8084
+    container_name: demo-limit
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/limit_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      SPRING_PROFILES_ACTIVE: keycloak
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/money-transfer
+      OTEL_JAVAAGENT_ENABLED: "false"
+      JAVA_OPTS: "-Xms64m -Xmx192m"
+    depends_on:
+      postgres:      { condition: service_healthy }
+      kafka:         { condition: service_healthy }
+      eureka-server: { condition: service_healthy }
+      keycloak:      { condition: service_healthy }
+    restart: on-failure
+    networks: [demo-net]
+
+  transaction-service:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: transaction-service
+        SERVICE_PORT: 8085
+    container_name: demo-transaction
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/transaction_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      SPRING_PROFILES_ACTIVE: keycloak
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/money-transfer
+      OTEL_JAVAAGENT_ENABLED: "false"
+      JAVA_OPTS: "-Xms64m -Xmx256m"
+    depends_on:
+      postgres:      { condition: service_healthy }
+      kafka:         { condition: service_healthy }
+      eureka-server: { condition: service_healthy }
+      keycloak:      { condition: service_healthy }
+    restart: on-failure
+    networks: [demo-net]
+
+  # ======================== GATEWAY ========================
+
+  api-gateway:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: api-gateway
+        SERVICE_PORT: 8080
+    container_name: demo-gateway
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      OTEL_JAVAAGENT_ENABLED: "false"
+      JAVA_OPTS: "-Xms32m -Xmx128m"
+    depends_on:
+      eureka-server: { condition: service_healthy }
+    restart: on-failure
+    networks: [demo-net]
+
+  # ======================== FRONTEND ========================
+
+  money-transfer-web:
+    build:
+      context: ./money-transfer-web
+    container_name: demo-web
+    ports:
+      - "3000:80"   # Frontend: http://localhost:3000
+    volumes:
+      - ./docker/nginx-demo.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api-gateway
+    networks: [demo-net]
+
+# ======================== VOLUMES / NETWORKS ========================
+
+volumes:
+  postgres-demo:
+
+networks:
+  demo-net:
+    name: demo-net
