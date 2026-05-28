@@ -241,6 +241,38 @@ services:
     networks:
       - money-transfer-net
 
+  onboarding-service:
+    build:
+      context: .
+      args:
+        SERVICE_NAME: onboarding-service
+        SERVICE_PORT: 8090
+    container_name: mt-onboarding
+    ports:
+      - "8090:8090"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/onboarding_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123456
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      account-service:
+        condition: service_started
+      kyc-service:
+        condition: service_started
+      limit-service:
+        condition: service_started
+    restart: on-failure
+    networks:
+      - money-transfer-net
+
   # ===================== TRANSFER SERVICES =====================
 
   internal-transfer-service:

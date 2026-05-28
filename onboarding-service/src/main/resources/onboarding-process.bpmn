@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_1"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  exporter="Camunda Modeler"
+                  exporterVersion="5.0.0">
+
+  <bpmn:process id="onboarding-process" name="Customer Onboarding" isExecutable="true">
+
+    <!-- ── Start ─────────────────────────────────────────── -->
+    <bpmn:startEvent id="startEvent" name="Start Onboarding">
+      <bpmn:outgoing>flow_start_to_register</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ── Step 1: Register User ─────────────────────────── -->
+    <bpmn:serviceTask id="registerUserTask"
+                      name="Register User"
+                      camunda:asyncBefore="true"
+                      camunda:delegateExpression="${registerUserDelegate}">
+      <bpmn:extensionElements>
+        <camunda:failedJobRetryTimeCycle>R0/PT0S</camunda:failedJobRetryTimeCycle>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_start_to_register</bpmn:incoming>
+      <bpmn:outgoing>flow_register_to_account</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── Step 2: Create Account ────────────────────────── -->
+    <bpmn:serviceTask id="createAccountTask"
+                      name="Create Account"
+                      camunda:asyncBefore="true"
+                      camunda:delegateExpression="${createAccountDelegate}">
+      <bpmn:extensionElements>
+        <camunda:failedJobRetryTimeCycle>R0/PT0S</camunda:failedJobRetryTimeCycle>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_register_to_account</bpmn:incoming>
+      <bpmn:outgoing>flow_account_to_username</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── Step 3: Update Username ───────────────────────── -->
+    <bpmn:serviceTask id="updateUsernameTask"
+                      name="Update Username"
+                      camunda:asyncBefore="true"
+                      camunda:delegateExpression="${updateUsernameDelegate}">
+      <bpmn:extensionElements>
+        <camunda:failedJobRetryTimeCycle>R0/PT0S</camunda:failedJobRetryTimeCycle>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_account_to_username</bpmn:incoming>
+      <bpmn:outgoing>flow_username_to_kyc</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── Step 4: Verify KYC ────────────────────────────── -->
+    <bpmn:serviceTask id="verifyKycTask"
+                      name="Verify KYC"
+                      camunda:asyncBefore="true"
+                      camunda:delegateExpression="${verifyKycDelegate}">
+      <bpmn:extensionElements>
+        <camunda:failedJobRetryTimeCycle>R0/PT0S</camunda:failedJobRetryTimeCycle>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_username_to_kyc</bpmn:incoming>
+      <bpmn:outgoing>flow_kyc_to_limits</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── Step 5: Initialize Limits ────────────────────── -->
+    <bpmn:serviceTask id="initLimitsTask"
+                      name="Initialize Limits"
+                      camunda:asyncBefore="true"
+                      camunda:delegateExpression="${initLimitsDelegate}">
+      <bpmn:extensionElements>
+        <camunda:failedJobRetryTimeCycle>R0/PT0S</camunda:failedJobRetryTimeCycle>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_kyc_to_limits</bpmn:incoming>
+      <bpmn:outgoing>flow_limits_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── End ──────────────────────────────────────────── -->
+    <bpmn:endEvent id="endEvent" name="Onboarding Complete">
+      <bpmn:incoming>flow_limits_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Sequence Flows ────────────────────────────────── -->
+    <bpmn:sequenceFlow id="flow_start_to_register"   sourceRef="startEvent"        targetRef="registerUserTask"/>
+    <bpmn:sequenceFlow id="flow_register_to_account" sourceRef="registerUserTask"   targetRef="createAccountTask"/>
+    <bpmn:sequenceFlow id="flow_account_to_username" sourceRef="createAccountTask"  targetRef="updateUsernameTask"/>
+    <bpmn:sequenceFlow id="flow_username_to_kyc"     sourceRef="updateUsernameTask" targetRef="verifyKycTask"/>
+    <bpmn:sequenceFlow id="flow_kyc_to_limits"       sourceRef="verifyKycTask"      targetRef="initLimitsTask"/>
+    <bpmn:sequenceFlow id="flow_limits_to_end"       sourceRef="initLimitsTask"     targetRef="endEvent"/>
+
+  </bpmn:process>
+
+  <!-- ── Diagram (layout info) ─────────────────────────────── -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="onboarding-process">
+      <bpmndi:BPMNShape id="startEvent_di"       bpmnElement="startEvent">       <dc:Bounds x="152" y="82" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="registerUserTask_di"  bpmnElement="registerUserTask">  <dc:Bounds x="240" y="60" width="100" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="createAccountTask_di" bpmnElement="createAccountTask"> <dc:Bounds x="390" y="60" width="100" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="updateUsernameTask_di" bpmnElement="updateUsernameTask"><dc:Bounds x="540" y="60" width="100" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="verifyKycTask_di"     bpmnElement="verifyKycTask">     <dc:Bounds x="690" y="60" width="100" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="initLimitsTask_di"    bpmnElement="initLimitsTask">    <dc:Bounds x="840" y="60" width="100" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endEvent_di"          bpmnElement="endEvent">          <dc:Bounds x="992" y="82" width="36" height="36"/></bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>
