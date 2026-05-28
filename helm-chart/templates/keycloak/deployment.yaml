@@ -1,0 +1,174 @@
+{{- if .Values.keycloak.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-config
+  namespace: {{ .Values.namespace }}
+data:
+  realm-export.json: |
+    {
+      "realm": "money-transfer",
+      "enabled": true,
+      "sslRequired": "none",
+      "registrationAllowed": false,
+      "accessTokenLifespan": 3600,
+      "ssoSessionMaxLifespan": 86400,
+      "roles": {
+        "realm": [
+          { "name": "USER", "description": "Standard user role" },
+          { "name": "ADMIN", "description": "Administrator role" }
+        ]
+      },
+      "clients": [
+        {
+          "clientId": "money-transfer-client",
+          "name": "Money Transfer Client",
+          "enabled": true,
+          "publicClient": true,
+          "directAccessGrantsEnabled": true,
+          "standardFlowEnabled": true,
+          "redirectUris": ["*"],
+          "webOrigins": ["*"],
+          "defaultClientScopes": ["openid", "profile", "email", "roles"],
+          "attributes": {
+            "access.token.lifespan": "3600"
+          }
+        },
+        {
+          "clientId": "money-transfer-service",
+          "name": "Money Transfer Service (Confidential)",
+          "enabled": true,
+          "publicClient": false,
+          "directAccessGrantsEnabled": true,
+          "serviceAccountsEnabled": true,
+          "secret": "money-transfer-secret",
+          "redirectUris": ["*"],
+          "defaultClientScopes": ["openid", "profile", "email", "roles"]
+        }
+      ],
+      "clientScopeMappings": {
+        "realm-management": [
+          {
+            "client": "money-transfer-service",
+            "roles": ["manage-users", "view-users", "query-users"]
+          }
+        ]
+      },
+      "users": [
+        {
+          "username": "1000000001",
+          "enabled": true,
+          "email": "nguyen.vana@email.com",
+          "firstName": "Van A",
+          "lastName": "Nguyen",
+          "emailVerified": true,
+          "credentials": [{ "type": "password", "value": "123456", "temporary": false }],
+          "realmRoles": ["USER"]
+        },
+        {
+          "username": "1000000002",
+          "enabled": true,
+          "email": "tran.vanb@email.com",
+          "firstName": "Van B",
+          "lastName": "Tran",
+          "emailVerified": true,
+          "credentials": [{ "type": "password", "value": "123456", "temporary": false }],
+          "realmRoles": ["USER"]
+        },
+        {
+          "username": "1000000003",
+          "enabled": true,
+          "email": "le.thic@email.com",
+          "firstName": "Thi C",
+          "lastName": "Le",
+          "emailVerified": true,
+          "credentials": [{ "type": "password", "value": "123456", "temporary": false }],
+          "realmRoles": ["USER"]
+        },
+        {
+          "username": "admin",
+          "enabled": true,
+          "email": "admin@moneytransfer.vn",
+          "firstName": "Admin",
+          "lastName": "System",
+          "emailVerified": true,
+          "credentials": [{ "type": "password", "value": "admin123", "temporary": false }],
+          "realmRoles": ["USER", "ADMIN"]
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.0
+          args: ["start-dev", "--import-realm"]
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: {{ .Values.keycloak.adminUsername }}
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              value: {{ .Values.keycloak.adminPassword }}
+            - name: KC_HTTP_PORT
+              value: "8080"
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: realm-config
+              mountPath: /opt/keycloak/data/import/realm-export.json
+              subPath: realm-export.json
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 120
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: {{ .Values.keycloak.resources.requests.cpu }}
+              memory: {{ .Values.keycloak.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.keycloak.resources.limits.cpu }}
+              memory: {{ .Values.keycloak.resources.limits.memory }}
+      volumes:
+        - name: realm-config
+          configMap:
+            name: keycloak-realm-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: {{ .Values.namespace }}
+spec:
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: {{ .Values.keycloak.nodePort }}
+  selector:
+    app: keycloak
+{{- end }}

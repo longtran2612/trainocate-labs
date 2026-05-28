@@ -38,6 +38,14 @@
       "defaultClientScopes": ["openid", "profile", "email", "roles"]
     }
   ],
+  "clientScopeMappings": {
+    "realm-management": [
+      {
+        "client": "money-transfer-service",
+        "roles": ["manage-users", "view-users", "query-users"]
+      }
+    ]
+  },
   "users": [
     {
       "username": "1000000001",

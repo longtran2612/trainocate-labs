@@ -72,9 +72,19 @@ spec:
             - containerPort: {{ .port }}
           env:
             - name: SPRING_PROFILES_ACTIVE
-              value: {{ $.Values.javaDefaults.springProfile }}
+              value: {{ .springProfiles | default $.Values.javaDefaults.springProfile }}
             - name: JAVA_OPTS
               value: {{ .javaOpts | default $.Values.javaDefaults.javaOpts | quote }}
+            {{- if .keycloakServerUrl }}
+            - name: KEYCLOAK_SERVER_URL
+              value: {{ .keycloakServerUrl }}
+            {{- end }}
+            {{- if .springProfiles }}
+            {{- if contains "keycloak" .springProfiles }}
+            - name: KEYCLOAK_ISSUER_URI
+              value: http://keycloak:8080/realms/money-transfer
+            {{- end }}
+            {{- end }}
             {{- if $.Values.observability.enabled }}
             - name: OTEL_SERVICE_NAME
               value: {{ .name }}

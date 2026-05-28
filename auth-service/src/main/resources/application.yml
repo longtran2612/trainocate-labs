@@ -25,11 +25,11 @@ eureka:
     service-url:
       defaultZone: http://localhost:8761/eureka/
 
-app:
-  jwt:
-    secret: bXktc3VwZXItc2VjcmV0LWtleS1mb3ItbW9uZXktdHJhbnNmZXItcGxhdGZvcm0tMjAyNA==
-    access-token-expiration: 900000
-    refresh-token-expiration: 2592000000
+keycloak:
+  server-url: ${KEYCLOAK_SERVER_URL:http://localhost:9090}
+  realm: money-transfer
+  client-id: money-transfer-service
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:money-transfer-secret}
 
 
 # ── Observability ──────────────────────────────────────────────

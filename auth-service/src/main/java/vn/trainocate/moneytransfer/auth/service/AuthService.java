@@ -1,11 +1,11 @@
 package vn.trainocate.moneytransfer.auth.service;
 
-import io.jsonwebtoken.Claims;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.trainocate.moneytransfer.auth.client.KeycloakAdminClient;
 import vn.trainocate.moneytransfer.auth.dto.request.LoginRequest;
 import vn.trainocate.moneytransfer.auth.dto.request.RefreshTokenRequest;
 import vn.trainocate.moneytransfer.auth.dto.request.RegisterRequest;
@@ -18,9 +18,12 @@ import vn.trainocate.moneytransfer.auth.entity.UserEntity;
 import vn.trainocate.moneytransfer.auth.exception.BusinessException;
 import vn.trainocate.moneytransfer.auth.repository.UserRepository;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Base64;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -29,31 +32,35 @@ import java.util.UUID;
 public class AuthService {
 
     private final UserRepository userRepository;
-    private final JwtService jwtService;
-    private final PasswordEncoder passwordEncoder;
+    private final KeycloakAdminClient keycloakAdminClient;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
-        // Use a temp username (UUID) — will be replaced by accountNo after account creation
+        // Generate a temp username (UUID-based, 16 chars) — replaced by accountNo later via updateUsername
         String tempUsername = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 
-        userRepository.findByUsername(tempUsername).ifPresent(u -> {
-            throw new BusinessException("AUTH_DUPLICATE", "Username collision, please retry");
-        });
+        // Create user in Keycloak first — get the assigned Keycloak UUID
+        String keycloakUserId = keycloakAdminClient.createUser(
+                tempUsername, request.getPassword(), request.getEmail(), null);
 
+        // Persist a local user record pointing to the Keycloak UUID
+        UUID userId = UUID.fromString(keycloakUserId);
         UserEntity user = UserEntity.builder()
+                .userId(userId)
                 .username(tempUsername)
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .passwordHash("{keycloak}")   // not used for auth — Keycloak is the authority
                 .phone(request.getPhone())
                 .email(request.getEmail())
                 .status("ACTIVE")
+                .createdAt(LocalDateTime.now())
                 .build();
 
-        user = userRepository.save(user);
-        log.info("User registered: userId={}, tempUsername={}", user.getUserId(), tempUsername);
+        userRepository.save(user);
+        log.info("User registered: userId={}, tempUsername={}", userId, tempUsername);
 
         return RegisterResponse.builder()
-                .userId(user.getUserId())
+                .userId(userId)
                 .username(tempUsername)
                 .build();
     }
@@ -69,13 +76,17 @@ public class AuthService {
             }
         });
 
+        // Update username in Keycloak
+        keycloakAdminClient.updateUsername(user.getUserId().toString(), request.getNewUsername());
+
+        // Update local record
         user.setUsername(request.getNewUsername());
         userRepository.save(user);
         log.info("Username updated: userId={}, newUsername={}", request.getUserId(), request.getNewUsername());
     }
 
-    @Transactional
     public LoginResponse login(LoginRequest request) {
+        // Verify user exists locally and is active before forwarding to Keycloak
         UserEntity user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new BusinessException("AUTH_USER_NOT_FOUND", "Invalid username or password"));
 
@@ -83,21 +94,14 @@ public class AuthService {
             throw new BusinessException("AUTH_USER_LOCKED", "User account is " + user.getStatus().toLowerCase());
         }
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new BusinessException("AUTH_INVALID_CREDENTIALS", "Invalid username or password");
-        }
+        // Delegate authentication to Keycloak — returns Keycloak access + refresh tokens
+        Map<String, Object> tokenResponse = keycloakAdminClient.loginUser(request.getUsername(), request.getPassword());
 
-        String accessToken = jwtService.generateAccessToken(user.getUserId(), user.getUsername());
-        String refreshToken = jwtService.generateRefreshToken(user.getUserId());
+        String accessToken = (String) tokenResponse.get("access_token");
+        String refreshToken = (String) tokenResponse.get("refresh_token");
 
-        Claims claims = jwtService.validateToken(accessToken);
-        LocalDateTime expiredAt = LocalDateTime.ofInstant(
-                Instant.ofEpochMilli(claims.getExpiration().getTime()), ZoneId.systemDefault());
-
-        user.setAccessToken(accessToken);
-        user.setRefreshToken(refreshToken);
-        user.setTokenExpiredAt(expiredAt);
-        userRepository.save(user);
+        // Parse expiry from the Keycloak JWT without verifying the signature
+        LocalDateTime expiredAt = parseExpiryFromJwt(accessToken);
 
         return LoginResponse.builder()
                 .accessToken(accessToken)
@@ -107,65 +111,35 @@ public class AuthService {
                 .build();
     }
 
-    @Transactional
     public LoginResponse refreshToken(RefreshTokenRequest request) {
-        Claims claims;
-        try {
-            claims = jwtService.validateToken(request.getRefreshToken());
-        } catch (Exception ex) {
-            throw new BusinessException("AUTH_INVALID_REFRESH_TOKEN", "Refresh token is invalid or expired");
-        }
+        Map<String, Object> tokenResponse = keycloakAdminClient.refreshToken(request.getRefreshToken());
 
-        String tokenType = claims.get("type", String.class);
-        if (!"REFRESH".equals(tokenType)) {
-            throw new BusinessException("AUTH_INVALID_REFRESH_TOKEN", "Token is not a refresh token");
-        }
+        String accessToken = (String) tokenResponse.get("access_token");
+        String refreshToken = (String) tokenResponse.get("refresh_token");
+        LocalDateTime expiredAt = parseExpiryFromJwt(accessToken);
 
-        UUID userId = UUID.fromString(claims.getSubject());
-        UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("AUTH_USER_NOT_FOUND", "User not found"));
-
-        if (!request.getRefreshToken().equals(user.getRefreshToken())) {
-            throw new BusinessException("AUTH_INVALID_REFRESH_TOKEN", "Refresh token does not match");
-        }
-
-        String newAccessToken = jwtService.generateAccessToken(user.getUserId(), user.getUsername());
-        String newRefreshToken = jwtService.generateRefreshToken(user.getUserId());
-
-        Claims newClaims = jwtService.validateToken(newAccessToken);
-        LocalDateTime expiredAt = LocalDateTime.ofInstant(
-                Instant.ofEpochMilli(newClaims.getExpiration().getTime()), ZoneId.systemDefault());
-
-        user.setAccessToken(newAccessToken);
-        user.setRefreshToken(newRefreshToken);
-        user.setTokenExpiredAt(expiredAt);
-        userRepository.save(user);
+        // Resolve userId from the new access token sub claim
+        UUID userId = parseUserIdFromJwt(accessToken);
 
         return LoginResponse.builder()
-                .accessToken(newAccessToken)
-                .refreshToken(newRefreshToken)
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
                 .expiredAt(expiredAt)
-                .userId(user.getUserId())
+                .userId(userId)
                 .build();
     }
 
-    @Transactional
     public void logout(String accessToken) {
-        UserEntity user = userRepository.findByAccessToken(accessToken)
-                .orElseThrow(() -> new BusinessException("AUTH_INVALID_TOKEN", "Token not found or already logged out"));
-
-        user.setAccessToken(null);
-        user.setRefreshToken(null);
-        user.setTokenExpiredAt(null);
-        userRepository.save(user);
+        // Resolve the Keycloak user UUID from the Bearer token, then revoke all sessions
+        String keycloakUserId = parseUserIdFromJwt(accessToken).toString();
+        keycloakAdminClient.revokeUserSessions(keycloakUserId);
     }
 
     public ValidateTokenResponse validateToken(ValidateTokenRequest request) {
         try {
-            Claims claims = jwtService.validateToken(request.getToken());
-            UUID userId = UUID.fromString(claims.getSubject());
-            LocalDateTime expiresAt = LocalDateTime.ofInstant(
-                    Instant.ofEpochMilli(claims.getExpiration().getTime()), ZoneId.systemDefault());
+            Map<String, Object> claims = decodeJwtPayload(request.getToken());
+            UUID userId = UUID.fromString((String) claims.get("sub"));
+            LocalDateTime expiresAt = parseExpiryFromClaims(claims);
 
             return ValidateTokenResponse.builder()
                     .valid(true)
@@ -173,9 +147,55 @@ public class AuthService {
                     .expiresAt(expiresAt)
                     .build();
         } catch (Exception ex) {
+            log.debug("Token validation failed: {}", ex.getMessage());
             return ValidateTokenResponse.builder()
                     .valid(false)
                     .build();
         }
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> decodeJwtPayload(String token) {
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) {
+                throw new BusinessException("AUTH_INVALID_TOKEN", "Malformed JWT");
+            }
+            // Add padding so Base64 decoder won't complain about missing '='
+            String padded = parts[1] + "==";
+            byte[] decoded = Base64.getUrlDecoder().decode(padded);
+            String json = new String(decoded, StandardCharsets.UTF_8);
+            return objectMapper.readValue(json, Map.class);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException("AUTH_INVALID_TOKEN", "Failed to decode token");
+        }
+    }
+
+    private UUID parseUserIdFromJwt(String token) {
+        Map<String, Object> claims = decodeJwtPayload(token);
+        String sub = (String) claims.get("sub");
+        if (sub == null) {
+            throw new BusinessException("AUTH_INVALID_TOKEN", "Token missing sub claim");
+        }
+        try {
+            return UUID.fromString(sub);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("AUTH_INVALID_TOKEN", "Token sub is not a valid UUID");
+        }
+    }
+
+    private LocalDateTime parseExpiryFromJwt(String token) {
+        return parseExpiryFromClaims(decodeJwtPayload(token));
+    }
+
+    private LocalDateTime parseExpiryFromClaims(Map<String, Object> claims) {
+        Number exp = (Number) claims.get("exp");
+        if (exp == null) return null;
+        return LocalDateTime.ofInstant(
+                Instant.ofEpochSecond(exp.longValue()), ZoneId.systemDefault());
     }
 }

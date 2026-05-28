@@ -64,6 +64,9 @@ Write-Host "Helm release deployed." -ForegroundColor Green
 # ----------------------------------------------------------
 Write-Host "`n[5/6] Waiting for pods to be ready (timeout 5min)..." -ForegroundColor Yellow
 
+Write-Host "  Waiting for Keycloak..." -ForegroundColor Gray
+kubectl wait --for=condition=ready pod -l app=keycloak -n money-transfer --timeout=180s
+
 Write-Host "  Waiting for PostgreSQL..." -ForegroundColor Gray
 kubectl wait --for=condition=ready pod -l app=postgresql -n money-transfer --timeout=120s
 
@@ -120,6 +123,7 @@ Write-Host "── Application ────────────────�
 Write-Host "Kong Proxy (API): http://localhost:30000" -ForegroundColor White
 Write-Host "Kong Admin:       http://localhost:30001" -ForegroundColor White
 Write-Host "Frontend (Web):   http://localhost:30080" -ForegroundColor White
+Write-Host "Keycloak:         http://localhost:30900  (admin/admin)" -ForegroundColor White
 Write-Host ""
 Write-Host "── Observability ──────────────────────────────" -ForegroundColor Cyan
 Write-Host "Jaeger UI:        http://localhost:30686" -ForegroundColor White

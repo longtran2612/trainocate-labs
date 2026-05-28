@@ -1,6 +1,20 @@
 # -- Namespace
 namespace: money-transfer
 
+# -- Keycloak
+keycloak:
+  enabled: true
+  nodePort: 30900
+  adminUsername: admin
+  adminPassword: admin
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
 # -- PostgreSQL
 postgresql:
   image: postgres:16-alpine
@@ -115,6 +129,7 @@ services:
     port: 8081
     hasDb: true
     dbName: auth
+    keycloakServerUrl: "http://keycloak:8080"
 
   - name: account-service
     port: 8082
@@ -122,24 +137,28 @@ services:
     dbName: account_db
     hasKafka: true
     hasRedis: true
+    springProfiles: "k8s,keycloak"
 
   - name: kyc-service
     port: 8083
     hasDb: true
     dbName: kyc_db
     hasKafka: true
+    springProfiles: "k8s,keycloak"
 
   - name: limit-service
     port: 8084
     hasDb: true
     dbName: limit_db
     hasKafka: true
+    springProfiles: "k8s,keycloak"
 
   - name: transaction-service
     port: 8085
     hasDb: true
     dbName: transaction_db
     hasKafka: true
+    springProfiles: "k8s,keycloak"
 
   - name: onboarding-service
     port: 8090
@@ -151,10 +170,12 @@ services:
   - name: internal-transfer-service
     port: 8086
     hasDb: false
+    springProfiles: "k8s,keycloak"
 
   - name: external-transfer-service
     port: 8087
     hasDb: false
+    springProfiles: "k8s,keycloak"
 
   - name: napas-simulator
     port: 8088
