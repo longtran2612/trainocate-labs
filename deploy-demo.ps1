@@ -39,7 +39,7 @@ $demoServices = @(
 
 foreach ($svc in $demoServices) {
     Write-Host "  Building $($svc.name)..." -ForegroundColor Gray
-    docker build --build-arg SERVICE_NAME=$($svc.name) --build-arg SERVICE_PORT=$($svc.port) -t "$($svc.name):latest" .
+    docker build -f Dockerfile-demo --build-arg SERVICE_NAME=$($svc.name) --build-arg SERVICE_PORT=$($svc.port) -t "$($svc.name):latest" .
     if ($LASTEXITCODE -ne 0) { Write-Host "Docker build failed for $($svc.name)!" -ForegroundColor Red; exit 1 }
 }
 
