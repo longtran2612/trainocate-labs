@@ -1,4 +1,5 @@
-FROM eclipse-temurin:25-jre-alpine
+ARG JRE_VERSION=25
+FROM eclipse-temurin:${JRE_VERSION}-jre-alpine
 
 ARG SERVICE_NAME
 ARG SERVICE_PORT

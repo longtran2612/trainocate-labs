@@ -1,0 +1,26 @@
+eureka:
+  client:
+    enabled: false
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgresql:5432/onboarding_db
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:123456}
+  cloud:
+    openfeign:
+      client:
+        config:
+          auth-service:
+            url: http://auth-service:8081
+          account-service:
+            url: http://account-service:8082
+          kyc-service:
+            url: http://kyc-service:8083
+          limit-service:
+            url: http://limit-service:8084
+
+camunda.bpm:
+  database:
+    # schema-update: true on first deploy only; set false afterwards
+    schema-update: true

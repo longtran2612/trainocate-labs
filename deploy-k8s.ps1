@@ -31,12 +31,14 @@ $services = @(
     @{ name = "transaction-service";       port = 8085 },
     @{ name = "internal-transfer-service"; port = 8086 },
     @{ name = "external-transfer-service"; port = 8087 },
-    @{ name = "napas-simulator";           port = 8088 }
+    @{ name = "napas-simulator";           port = 8088 },
+    @{ name = "onboarding-service";        port = 8090; jreVersion = 21 }
 )
 
 foreach ($svc in $services) {
     Write-Host "  Building $($svc.name)..." -ForegroundColor Gray
-    docker build --build-arg SERVICE_NAME=$($svc.name) --build-arg SERVICE_PORT=$($svc.port) -t "$($svc.name):latest" .
+    $jreVersion = if ($svc.jreVersion) { $svc.jreVersion } else { 25 }
+    docker build --build-arg SERVICE_NAME=$($svc.name) --build-arg SERVICE_PORT=$($svc.port) --build-arg JRE_VERSION=$jreVersion -t "$($svc.name):latest" .
     if ($LASTEXITCODE -ne 0) { Write-Host "Docker build failed for $($svc.name)!" -ForegroundColor Red; exit 1 }
 }
 Write-Host "All backend Docker images built." -ForegroundColor Green
@@ -64,6 +66,9 @@ Write-Host "`n[5/6] Waiting for pods to be ready (timeout 5min)..." -ForegroundC
 
 Write-Host "  Waiting for PostgreSQL..." -ForegroundColor Gray
 kubectl wait --for=condition=ready pod -l app=postgresql -n money-transfer --timeout=120s
+
+Write-Host "  Waiting for Kafka..." -ForegroundColor Gray
+kubectl wait --for=condition=ready pod -l app=kafka -n money-transfer --timeout=120s
 
 foreach ($svc in $services) {
     Write-Host "  Waiting for $($svc.name)..." -ForegroundColor Gray

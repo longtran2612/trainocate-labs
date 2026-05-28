@@ -15,3 +15,5 @@ spring:
             url: http://internal-transfer-service:8086
           external-transfer-service:
             url: http://external-transfer-service:8087
+  kafka:
+    bootstrap-servers: kafka:9092
