@@ -1,0 +1,125 @@
+{{- if .Values.observability.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-config
+  namespace: {{ .Values.namespace }}
+data:
+  logstash.yml: |
+    http.host: "0.0.0.0"
+    xpack.monitoring.enabled: false
+
+  logstash.conf: |
+    input {
+      beats {
+        port => 5044
+      }
+    }
+
+    filter {
+      # Parse ECS JSON emitted by Spring Boot structured logging
+      if [message] =~ /^\{/ {
+        json {
+          source => "message"
+          target => "ecs"
+          skip_on_invalid_json => true
+        }
+        if [ecs] {
+          mutate {
+            add_field => {
+              "log_level"    => "%{[ecs][log.level]}"
+              "service_name" => "%{[ecs][service.name]}"
+              "trace_id"     => "%{[ecs][trace.id]}"
+              "span_id"      => "%{[ecs][span.id]}"
+              "log_message"  => "%{[ecs][message]}"
+            }
+            remove_field => ["message"]
+          }
+        }
+      }
+
+      if [kubernetes][container][name] {
+        mutate {
+          add_field => { "container_name" => "%{[kubernetes][container][name]}" }
+        }
+      }
+    }
+
+    output {
+      elasticsearch {
+        hosts => ["elasticsearch:9200"]
+        index => "money-transfer-%{+YYYY.MM.dd}"
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logstash
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logstash
+  template:
+    metadata:
+      labels:
+        app: logstash
+    spec:
+      initContainers:
+        - name: wait-for-elasticsearch
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z elasticsearch 9200; do
+                echo "Waiting for Elasticsearch..."
+                sleep 5
+              done
+              echo "Elasticsearch is ready!"
+      containers:
+        - name: logstash
+          image: logstash:8.14.0
+          ports:
+            - containerPort: 5044
+          volumeMounts:
+            - name: config
+              mountPath: /usr/share/logstash/config/logstash.yml
+              subPath: logstash.yml
+            - name: config
+              mountPath: /usr/share/logstash/pipeline/logstash.conf
+              subPath: logstash.conf
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9600
+            initialDelaySeconds: 60
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: logstash-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash
+  namespace: {{ .Values.namespace }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5044
+      targetPort: 5044
+  selector:
+    app: logstash
+{{- end }}

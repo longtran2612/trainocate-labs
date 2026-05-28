@@ -121,6 +121,7 @@ services:
     hasDb: true
     dbName: account_db
     hasKafka: true
+    hasRedis: true
 
   - name: kyc-service
     port: 8083

@@ -67,6 +67,9 @@ Write-Host "`n[5/6] Waiting for pods to be ready (timeout 5min)..." -ForegroundC
 Write-Host "  Waiting for PostgreSQL..." -ForegroundColor Gray
 kubectl wait --for=condition=ready pod -l app=postgresql -n money-transfer --timeout=120s
 
+Write-Host "  Waiting for Redis..." -ForegroundColor Gray
+kubectl wait --for=condition=ready pod -l app=redis -n money-transfer --timeout=60s
+
 Write-Host "  Waiting for Kafka..." -ForegroundColor Gray
 kubectl wait --for=condition=ready pod -l app=kafka -n money-transfer --timeout=120s
 
@@ -81,6 +84,27 @@ kubectl wait --for=condition=ready pod -l app=kong -n money-transfer --timeout=1
 Write-Host "  Waiting for Frontend..." -ForegroundColor Gray
 kubectl wait --for=condition=ready pod -l app=money-transfer-web -n money-transfer --timeout=60s
 
+Write-Host "  Waiting for Jaeger..." -ForegroundColor Gray
+kubectl wait --for=condition=ready pod -l app=jaeger -n money-transfer --timeout=60s
+
+Write-Host "  Waiting for Elasticsearch..." -ForegroundColor Gray
+kubectl wait --for=condition=ready pod -l app=elasticsearch -n money-transfer --timeout=180s
+
+Write-Host "  Waiting for Logstash..." -ForegroundColor Gray
+kubectl wait --for=condition=ready pod -l app=logstash -n money-transfer --timeout=120s
+
+Write-Host "  Waiting for Kibana..." -ForegroundColor Gray
+kubectl wait --for=condition=ready pod -l app=kibana -n money-transfer --timeout=120s
+
+Write-Host "  Waiting for Prometheus..." -ForegroundColor Gray
+kubectl wait --for=condition=ready pod -l app=prometheus -n money-transfer --timeout=60s
+
+Write-Host "  Waiting for Grafana..." -ForegroundColor Gray
+kubectl wait --for=condition=ready pod -l app=grafana -n money-transfer --timeout=60s
+
+Write-Host "  Waiting for Filebeat DaemonSet..." -ForegroundColor Gray
+kubectl rollout status daemonset/filebeat -n money-transfer --timeout=60s
+
 Write-Host "All pods are ready!" -ForegroundColor Green
 
 # ----------------------------------------------------------
@@ -92,11 +116,18 @@ Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 kubectl get pods -n money-transfer
 Write-Host ""
+Write-Host "── Application ────────────────────────────────" -ForegroundColor Cyan
 Write-Host "Kong Proxy (API): http://localhost:30000" -ForegroundColor White
 Write-Host "Kong Admin:       http://localhost:30001" -ForegroundColor White
 Write-Host "Frontend (Web):   http://localhost:30080" -ForegroundColor White
 Write-Host ""
-Write-Host "Helm commands:" -ForegroundColor Gray
+Write-Host "── Observability ──────────────────────────────" -ForegroundColor Cyan
+Write-Host "Jaeger UI:        http://localhost:30686" -ForegroundColor White
+Write-Host "Kibana (Logs):    http://localhost:30601" -ForegroundColor White
+Write-Host "Prometheus:       http://localhost:30090" -ForegroundColor White
+Write-Host "Grafana:          http://localhost:30030  (admin/admin)" -ForegroundColor White
+Write-Host ""
+Write-Host "── Helm commands ──────────────────────────────" -ForegroundColor Gray
 Write-Host "  helm status money-transfer -n money-transfer" -ForegroundColor Gray
 Write-Host "  helm history money-transfer -n money-transfer" -ForegroundColor Gray
 Write-Host "  helm uninstall money-transfer -n money-transfer" -ForegroundColor Gray
