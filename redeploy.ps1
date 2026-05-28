@@ -17,9 +17,14 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
 $allBackend = @(
-    "auth-service", "account-service", "kyc-service", "limit-service",
-    "transaction-service", "internal-transfer-service",
-    "external-transfer-service", "napas-simulator"
+    @{ name = "auth-service";              port = 8081 },
+    @{ name = "account-service";           port = 8082 },
+    @{ name = "kyc-service";               port = 8083 },
+    @{ name = "limit-service";             port = 8084 },
+    @{ name = "transaction-service";       port = 8085 },
+    @{ name = "internal-transfer-service"; port = 8086 },
+    @{ name = "external-transfer-service"; port = 8087 },
+    @{ name = "napas-simulator";           port = 8088 }
 )
 
 $rebuildBackend = @()
@@ -35,12 +40,15 @@ if (-not $Targets -or $Targets.Count -eq 0) {
             $rebuildFrontend = $true
         } elseif ($t -eq "helm") {
             $helmOnly = $true
-        } elseif ($t -in $allBackend) {
-            $rebuildBackend += $t
         } else {
-            Write-Host "Unknown target: $t" -ForegroundColor Red
-            Write-Host "Available: $($allBackend -join ', '), frontend, helm" -ForegroundColor Gray
-            exit 1
+            $svcEntry = $allBackend | Where-Object { $_.name -eq $t }
+            if ($svcEntry) {
+                $rebuildBackend += $svcEntry
+            } else {
+                Write-Host "Unknown target: $t" -ForegroundColor Red
+                Write-Host "Available: $($allBackend.name -join ', '), frontend, helm" -ForegroundColor Gray
+                exit 1
+            }
         }
     }
 }
@@ -65,9 +73,9 @@ if ($rebuildBackend.Count -gt 0) {
 
     Write-Host "`n[2/4] Building Docker images..." -ForegroundColor Yellow
     foreach ($svc in $rebuildBackend) {
-        Write-Host "  $svc" -ForegroundColor Gray
-        docker build -t "${svc}:latest" .
-        if ($LASTEXITCODE -ne 0) { Write-Host "Docker build failed for $svc!" -ForegroundColor Red; exit 1 }
+        Write-Host "  $($svc.name)" -ForegroundColor Gray
+        docker build --build-arg SERVICE_NAME=$($svc.name) --build-arg SERVICE_PORT=$($svc.port) -t "$($svc.name):latest" .
+        if ($LASTEXITCODE -ne 0) { Write-Host "Docker build failed for $($svc.name)!" -ForegroundColor Red; exit 1 }
     }
 }
 
@@ -82,7 +90,7 @@ if ($rebuildFrontend) {
 Write-Host "`n[4/4] Restarting pods..." -ForegroundColor Yellow
 
 foreach ($svc in $rebuildBackend) {
-    kubectl rollout restart deployment/$svc -n money-transfer
+    kubectl rollout restart deployment/$($svc.name) -n money-transfer
 }
 if ($rebuildFrontend) {
     kubectl rollout restart deployment/money-transfer-web -n money-transfer
@@ -90,8 +98,8 @@ if ($rebuildFrontend) {
 
 # Wait for rollout
 foreach ($svc in $rebuildBackend) {
-    Write-Host "  Waiting for $svc..." -ForegroundColor Gray
-    kubectl rollout status deployment/$svc -n money-transfer --timeout=180s
+    Write-Host "  Waiting for $($svc.name)..." -ForegroundColor Gray
+    kubectl rollout status deployment/$($svc.name) -n money-transfer --timeout=180s
 }
 if ($rebuildFrontend) {
     Write-Host "  Waiting for frontend..." -ForegroundColor Gray

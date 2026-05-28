@@ -51,14 +51,22 @@ export default function Navbar() {
         <NavLink to="/history" className={({ isActive }) => isActive ? 'active' : ''}>
           History
         </NavLink>
+        <NavLink to="/architecture" className={({ isActive }) => isActive ? 'active' : ''}>
+          Architecture
+        </NavLink>
       </div>
       <div className="navbar-user">
         <div className="navbar-account-info">
           {fullName && <span className="navbar-fullname">{fullName}</span>}
-          <span className="account-badge">{user.accountNo}</span>
-          {balance !== null && (
-            <span className="navbar-balance">{formatCurrency(balance)}</span>
-          )}
+          <div className="navbar-sub">
+            <span className="account-badge">{user.accountNo}</span>
+            {balance !== null && (
+              <>
+                <span style={{ color: 'var(--border)', fontSize: '0.7rem' }}>|</span>
+                <span className="navbar-balance">{formatCurrency(balance)}</span>
+              </>
+            )}
+          </div>
         </div>
         <button className="btn btn-outline btn-sm" onClick={handleLogout}>
           Logout

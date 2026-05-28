@@ -4,10 +4,10 @@ import { getTransactionHistory } from '../api/transactionApi';
 import { checkBalance } from '../api/accountApi';
 
 const STATUS_MAP = {
-  COMPLETED: { label: 'Thành công', cls: 'badge-success' },
-  PENDING: { label: 'Đang xử lý', cls: 'badge-warning' },
-  REVERSED: { label: 'Hoàn tiền', cls: 'badge-error' },
-  FAILED: { label: 'Thất bại', cls: 'badge-error' },
+  COMPLETED: { label: 'Completed', cls: 'badge-success' },
+  PENDING: { label: 'Pending', cls: 'badge-warning' },
+  REVERSED: { label: 'Reversed', cls: 'badge-error' },
+  FAILED: { label: 'Failed', cls: 'badge-error' },
 };
 
 function formatAmount(amount) {
@@ -51,7 +51,7 @@ export default function HistoryPage() {
           setBalance(balanceRes.value.data.data);
         }
       } catch (err) {
-        setError(err.response?.data?.message || 'Không thể tải lịch sử giao dịch');
+        setError(err.response?.data?.message || 'Failed to load transaction history');
       } finally {
         setLoading(false);
       }
@@ -64,7 +64,7 @@ export default function HistoryPage() {
       <div className="page">
         <div className="page-loader">
           <div className="spinner" />
-          <span>Đang tải lịch sử...</span>
+          <span>Loading history...</span>
         </div>
       </div>
     );
@@ -73,19 +73,19 @@ export default function HistoryPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h2>Lịch sử giao dịch</h2>
-        <span className="text-muted">{transactions.length} giao dịch</span>
+        <h2>Transaction History</h2>
+        <span className="text-muted">{transactions.length} transaction(s)</span>
       </div>
 
       {/* Balance summary */}
       {balance && (
         <div className="balance-hero" style={{ marginBottom: '1.5rem' }}>
-          <div className="balance-label">Số dư khả dụng</div>
+          <div className="balance-label">Available Balance</div>
           <div className="balance-amount">{formatCurrency(balance.availableBalance)}</div>
           <div className="balance-details">
-            <span>Tổng: {formatCurrency(balance.balance)}</span>
+            <span>Total: {formatCurrency(balance.balance)}</span>
             <span className="separator">|</span>
-            <span>Phong toả: {formatCurrency(balance.holdBalance)}</span>
+            <span>Hold: {formatCurrency(balance.holdBalance)}</span>
             <span className="separator">|</span>
             <span>{balance.currency}</span>
           </div>
@@ -97,7 +97,7 @@ export default function HistoryPage() {
       {transactions.length === 0 && !error ? (
         <div className="history-empty">
           <div className="history-empty-icon">📋</div>
-          <p>Chưa có giao dịch nào</p>
+          <p>No transactions found</p>
         </div>
       ) : (
         <div className="history-list">
@@ -135,7 +135,7 @@ export default function HistoryPage() {
                   <span className={`badge ${statusInfo.cls}`}>{statusInfo.label}</span>
                   {tx.balanceAfter != null && (
                     <div className="history-balance-after">
-                      Số dư: {formatCurrency(tx.balanceAfter)}
+                      Balance: {formatCurrency(tx.balanceAfter)}
                     </div>
                   )}
                 </div>

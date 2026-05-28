@@ -8,6 +8,7 @@ import TransferSelectPage from './pages/TransferSelectPage';
 import TransferPage from './pages/TransferPage';
 import HistoryPage from './pages/HistoryPage';
 import OnboardPage from './pages/OnboardPage';
+import ArchitecturePage from './pages/ArchitecturePage';
 import './index.css';
 
 export default function App() {
@@ -47,6 +48,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <HistoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/architecture"
+            element={
+              <ProtectedRoute>
+                <ArchitecturePage />
               </ProtectedRoute>
             }
           />

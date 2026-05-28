@@ -38,3 +38,9 @@ eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
+
+account:
+  read-model:
+    # Max age (ms) of a Redis read model before it is considered stale and we fall back to PostgreSQL.
+    # 30 s is generous for local dev; tighten to 3000 for staging/prod.
+    max-staleness-ms: 30000

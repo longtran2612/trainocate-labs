@@ -467,6 +467,12 @@ export default function TransferPage() {
                     </span>
                   </div>
                 )}
+                {transferResult.senderNewBalance != null && (
+                  <div className="info-row highlight">
+                    <span className="label">Your New Balance</span>
+                    <span className="value">{formatCurrency(transferResult.senderNewBalance)}</span>
+                  </div>
+                )}
               </div>
             )}
 
