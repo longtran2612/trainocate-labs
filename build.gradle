@@ -46,12 +46,16 @@ subprojects {
     }
 }
 
-// Microservices: shared web + validation (excludes api-gateway, eureka-server)
+// Microservices: shared web + validation + observability (excludes api-gateway, eureka-server)
 def microservices = subprojects.findAll { !(it.name in ['api-gateway', 'eureka-server']) }
 configure(microservices) {
     dependencies {
         implementation 'org.springframework.boot:spring-boot-starter-web'
         implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+        // Observability: metrics + health (tracing via OTel Java Agent at runtime)
+        implementation 'org.springframework.boot:spring-boot-starter-actuator'
+        implementation 'io.micrometer:micrometer-registry-prometheus'
     }
 }
 

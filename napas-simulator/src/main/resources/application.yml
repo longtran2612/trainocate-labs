@@ -17,3 +17,25 @@ napas:
     delay-ms: 500
     # Failure rate 0.0 ~ 1.0 (0 = always success, 0.1 = 10% fail)
     failure-rate: 0.0
+
+
+# ── Observability ──────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+logging:
+  structured:
+    format:
+      console: ecs
+

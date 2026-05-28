@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: money-transfer
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - auth-service:8081
+          - account-service:8082
+          - kyc-service:8083
+          - limit-service:8084
+          - transaction-service:8085
+          - internal-transfer-service:8086
+          - external-transfer-service:8087
+          - napas-simulator:8088
+          - onboarding-service:8090

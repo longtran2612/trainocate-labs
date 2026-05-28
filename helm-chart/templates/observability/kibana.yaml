@@ -1,0 +1,53 @@
+{{- if .Values.observability.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kibana
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kibana
+  template:
+    metadata:
+      labels:
+        app: kibana
+    spec:
+      containers:
+        - name: kibana
+          image: kibana:8.14.0
+          ports:
+            - containerPort: 5601
+          env:
+            - name: ELASTICSEARCH_HOSTS
+              value: http://elasticsearch:9200
+          resources:
+            requests:
+              cpu: {{ .Values.observability.kibana.resources.requests.cpu }}
+              memory: {{ .Values.observability.kibana.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.observability.kibana.resources.limits.cpu }}
+              memory: {{ .Values.observability.kibana.resources.limits.memory }}
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            initialDelaySeconds: 60
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana
+  namespace: {{ .Values.namespace }}
+spec:
+  type: NodePort
+  ports:
+    - port: 5601
+      targetPort: 5601
+      nodePort: {{ .Values.observability.kibana.nodePort }}
+  selector:
+    app: kibana
+{{- end }}

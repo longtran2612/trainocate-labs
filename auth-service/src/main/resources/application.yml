@@ -30,3 +30,25 @@ app:
     secret: bXktc3VwZXItc2VjcmV0LWtleS1mb3ItbW9uZXktdHJhbnNmZXItcGxhdGZvcm0tMjAyNA==
     access-token-expiration: 900000
     refresh-token-expiration: 2592000000
+
+
+# ── Observability ──────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+logging:
+  structured:
+    format:
+      console: ecs
+

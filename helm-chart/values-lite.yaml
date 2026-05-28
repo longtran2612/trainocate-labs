@@ -19,3 +19,7 @@ services:
     port: 8082
     hasDb: true
     dbName: account_db
+
+# Disable observability in lite mode to save resources
+observability:
+  enabled: false
